@@ -7,7 +7,7 @@ public class GameOverUI : MonoBehaviour
     public GameObject gameOverPanel;
     public TMP_Text rankingText;
 
-    public string mainMenuSceneName = "LobbyScene";
+    public string mainMenuSceneName = "MainMenu";
 
     void Start()
     {
@@ -27,6 +27,12 @@ public class GameOverUI : MonoBehaviour
 
     public void BackToMainMenu()
     {
+        if (Unity.Netcode.NetworkManager.Singleton != null &&
+            Unity.Netcode.NetworkManager.Singleton.IsListening)
+        {
+            Unity.Netcode.NetworkManager.Singleton.Shutdown();
+        }
+
         SceneManager.LoadScene(mainMenuSceneName);
     }
 }

@@ -30,7 +30,7 @@ public class NetworkGameResultManager : NetworkBehaviour
                 count++;
         }
 
-        if (count >= 1)
+        if (count >= 4)
         {
             AddFinishedPlayer(playerIndex);
         }

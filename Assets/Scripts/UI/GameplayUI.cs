@@ -7,6 +7,9 @@ public class GameplayUI : MonoBehaviour
     public TMP_Text diceText;
     public TMP_Text messageText;
     public TMP_Text winnerText;
+    public GameObject gameOverPanel;
+    public TMP_Text gameOverText;
+    public TMP_Text timerText;
 
     public void SetTurn(PlayerColor color)
     {
@@ -28,13 +31,26 @@ public class GameplayUI : MonoBehaviour
         winnerText.text = "Player " + playerIndex + " finished";
     }
 
-    public void SetGameOver()
+    public void SetGameOver(string message = "Game Over")
     {
-        winnerText.text = "Game Over";
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(true);
+
+        if (gameOverText != null)
+            gameOverText.text = message;
+
+        SetMessage(message);
     }
 
     public void ClearDice()
     {
         diceText.text = "Dice: -";
+    }
+    public void SetTimer(int value)
+    {
+        if (timerText != null)
+        {
+            timerText.text = "Time: " + value;
+        }
     }
 }

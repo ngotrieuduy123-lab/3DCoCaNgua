@@ -78,6 +78,16 @@ public class LobbyManager : NetworkBehaviour
 
     void OnClientDisconnected(ulong clientId)
     {
+        if (!IsServer) return;
+
+        int index = GetPlayerIndexByClientId(clientId);
+
+        if (index >= 0)
+        {
+            playerNames.RemoveAt(index);
+            readyStates.RemoveAt(index);
+        }
+
         RefreshPlayerList();
     }
 

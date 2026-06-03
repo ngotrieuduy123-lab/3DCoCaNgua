@@ -59,7 +59,15 @@ public class PieceController : NetworkBehaviour
 
         if (enemy != null && !board.IsSafeTile(startIndex))
         {
-            SoundManager.Instance.PlayKick();
+            if (NetworkSoundManager.Instance != null)
+            {
+                NetworkSoundManager.Instance.PlayKickSoundRpc();
+            }
+            else
+            {
+                SoundManager.Instance.PlayKick();
+            }
+
             enemy.ReturnToStable();
         }
 
@@ -70,7 +78,14 @@ public class PieceController : NetworkBehaviour
         stepsMoved = 0;
 
         transform.position = board.pathPoints[startIndex].position;
-        SoundManager.Instance.PlayMove();
+        if (NetworkSoundManager.Instance != null)
+        {
+            NetworkSoundManager.Instance.PlayMoveSoundRpc();
+        }
+        else
+        {
+            SoundManager.Instance.PlayMove();
+        }
         transform.localScale = originalScale;
         isSelected = false;
     }
@@ -223,7 +238,14 @@ public class PieceController : NetworkBehaviour
             }
 
             transform.position = targetPos;
-            SoundManager.Instance.PlayMove();
+            if (NetworkSoundManager.Instance != null)
+            {
+                NetworkSoundManager.Instance.PlayMoveSoundRpc();
+            }
+            else
+            {
+                SoundManager.Instance.PlayMove();
+            }
             yield return new WaitForSeconds(0.1f);
         }
         if (isInHomePath)
@@ -274,6 +296,16 @@ public class PieceController : NetworkBehaviour
         if (enemy != null)
         {
             Debug.Log("kick enemy: " + enemy.name);
+
+            if (NetworkSoundManager.Instance != null)
+            {
+                NetworkSoundManager.Instance.PlayKickSoundRpc();
+            }
+            else
+            {
+                SoundManager.Instance.PlayKick();
+            }
+
             enemy.ReturnToStable();
         }
     }
@@ -310,7 +342,14 @@ public class PieceController : NetworkBehaviour
         {
             isFinished = true;
             board.AddFinishedPiece(playerIndex);
-            SoundManager.Instance.PlayFinish();
+            if (NetworkSoundManager.Instance != null)
+            {
+                NetworkSoundManager.Instance.PlayFinishSoundRpc();
+            }
+            else
+            {
+                SoundManager.Instance.PlayFinish();
+            }
             Debug.Log("FINISH PIECE: " + name
                 + " player=" + playerIndex
                 + " home=" + (homeIndex + 1)

@@ -16,6 +16,10 @@ public class NetworkPieceMoveManager : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     void RequestMovePieceRpc(int pieceId, RpcParams rpcParams = default)
     {
+        if (GameManager.Instance.IsState(GameState.GameOver))
+        {
+            return;
+        }
         PieceController piece = GetPieceById(pieceId);
 
         if (piece == null)
@@ -25,7 +29,13 @@ public class NetworkPieceMoveManager : NetworkBehaviour
         }
 
         ulong senderClientId = rpcParams.Receive.SenderClientId;
-        int senderPlayerIndex = (int)senderClientId;
+        int senderPlayerIndex = NetworkPlayerSlotManager.Instance.GetPlayerIndex(senderClientId);
+
+        if (senderPlayerIndex == -1)
+        {
+            Debug.Log("sender has no player slot");
+            return;
+        }
 
         if (piece.playerIndex != senderPlayerIndex)
         {

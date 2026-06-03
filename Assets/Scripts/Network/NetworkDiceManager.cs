@@ -13,6 +13,13 @@ public class NetworkDiceManager : NetworkBehaviour
     public Dice visualDice1;
     public Dice visualDice2;
 
+    public static NetworkDiceManager Instance;
+
+    void Awake()
+    {
+        Instance = this;
+    }
+
     public override void OnNetworkSpawn()
     {
         dice1Value.OnValueChanged += OnDiceChanged;
@@ -24,6 +31,12 @@ public class NetworkDiceManager : NetworkBehaviour
 
     public void RequestRollDice()
     {
+        if (GameManager.Instance.IsState(GameState.GameOver))
+        {
+            gameplayUI.SetMessage("Game over");
+            return;
+        }
+
         if (IsServer)
         {
             ulong hostId = NetworkManager.Singleton.LocalClientId;
@@ -63,6 +76,10 @@ public class NetworkDiceManager : NetworkBehaviour
         int d1 = Random.Range(1, 7);
         int d2 = Random.Range(1, 7);
         PlayDiceVisualClientRpc(d1, d2);
+        if (NetworkSoundManager.Instance != null)
+        {
+            NetworkSoundManager.Instance.PlayDiceSoundRpc();
+        }
         dice1Value.Value = d1;
         dice2Value.Value = d2;
         totalValue.Value = d1 + d2;
@@ -166,7 +183,10 @@ public class NetworkDiceManager : NetworkBehaviour
     {
         int currentPlayer = NetworkTurnManager.Instance.currentPlayerIndex.Value;
 
-        if ((int)senderClientId != currentPlayer)
+        int senderPlayerIndex =
+            NetworkPlayerSlotManager.Instance.GetPlayerIndex(senderClientId);
+
+        if (senderPlayerIndex != currentPlayer)
             return false;
 
         if (totalValue.Value > 0)

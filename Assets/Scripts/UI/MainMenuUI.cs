@@ -3,11 +3,30 @@ using UnityEngine.SceneManagement;
 
 public class MainMenuUI : MonoBehaviour
 {
-    public string gameSceneName = "GameScene";
+    public string lobbySceneName = "LobbyScene";
 
-    public void StartGame(int playerCount)
+    public void StartGame()
     {
-        PlayerPrefs.SetInt("PlayerCount", playerCount);
-        SceneManager.LoadScene(gameSceneName);
+        SceneManager.LoadScene(lobbySceneName);
+    }
+
+    public void OpenSetting()
+    {
+        Debug.Log("Open setting later");
+    }
+
+    public void OpenHistory()
+    {
+        Debug.Log("Open history later");
+    }
+
+    public void OpenLogin()
+    {
+        Debug.Log("Open login later");
+    }
+
+    public void ExitApp()
+    {
+        Application.Quit();
     }
 }

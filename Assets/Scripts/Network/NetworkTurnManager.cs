@@ -42,8 +42,12 @@ public class NetworkTurnManager : NetworkBehaviour
     {
         gameplayUI.SetTurn((PlayerColor)playerIndex);
 
-        if (NetworkManager.Singleton != null &&
-            NetworkManager.Singleton.LocalClientId == (ulong)playerIndex)
+        int localPlayerIndex =
+            NetworkPlayerSlotManager.Instance.GetPlayerIndex(
+                NetworkManager.Singleton.LocalClientId
+            );
+
+        if (localPlayerIndex == playerIndex)
         {
             gameplayUI.SetMessage("Your turn");
         }
@@ -60,10 +64,43 @@ public class NetworkTurnManager : NetworkBehaviour
         usedExtraTurn = false;
         if (!IsServer) return;
 
-        currentPlayerIndex.Value++;
+        if (NetworkDiceManager.Instance != null)
+        {
+            NetworkDiceManager.Instance.ResetNetworkDice();
+        }
 
-        if (currentPlayerIndex.Value >= playerCount.Value)
-            currentPlayerIndex.Value = 0;
+        int nextPlayer = currentPlayerIndex.Value;
+
+        for (int i = 0; i < playerCount.Value; i++)
+        {
+            nextPlayer++;
+
+            if (nextPlayer >= playerCount.Value)
+                nextPlayer = 0;
+
+            bool connected = true;
+
+            if (NetworkPlayerSlotManager.Instance != null)
+            {
+                connected = NetworkPlayerSlotManager.Instance.IsPlayerConnected(nextPlayer);
+            }
+
+            Debug.Log("Check next player " + nextPlayer + " connected=" + connected);
+
+            if (connected)
+            {
+                currentPlayerIndex.Value = nextPlayer;
+                break;
+            }
+        }
+        if (TurnTimerManager.Instance != null)
+        {
+            TurnTimerManager.Instance.ResetTimer();
+        }
+
+        GameManager.Instance.SetState(GameState.WaitingRoll);
+
+        Debug.Log("Next turn after skip = " + currentPlayerIndex.Value);
     }
     public bool CanGetExtraTurn()
     {
