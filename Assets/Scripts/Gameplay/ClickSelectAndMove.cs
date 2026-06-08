@@ -83,6 +83,24 @@ public class ClickSelectAndMove : MonoBehaviour
 
         if (isNetworkMode)
         {
+            int localPlayer = NetworkPlayerSlotManager.Instance != null
+                ? NetworkPlayerSlotManager.Instance.GetPlayerIndex(Unity.Netcode.NetworkManager.Singleton.LocalClientId)
+                : (int)Unity.Netcode.NetworkManager.Singleton.LocalClientId;
+
+            if (NetworkRoomControlManager.Instance != null &&
+                !NetworkRoomControlManager.Instance.IsPlayerActive(localPlayer))
+            {
+                gameplayUI.SetMessage("You are no longer in this room.");
+                return;
+            }
+
+            if (piece.playerIndex != localPlayer)
+            {
+                Debug.Log("not your piece");
+                gameplayUI.SetMessage("Not your piece");
+                return;
+            }
+
             if (piece.playerIndex != NetworkTurnManager.Instance.currentPlayerIndex.Value)
             {
                 Debug.Log("not network turn");

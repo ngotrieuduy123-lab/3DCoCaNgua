@@ -43,6 +43,13 @@ public class NetworkPieceMoveManager : NetworkBehaviour
             return;
         }
 
+        if (NetworkRoomControlManager.Instance != null &&
+            !NetworkRoomControlManager.Instance.IsPlayerActive(senderPlayerIndex))
+        {
+            Debug.Log("inactive player cannot move");
+            return;
+        }
+
         if (piece.playerIndex != NetworkTurnManager.Instance.currentPlayerIndex.Value)
         {
             Debug.Log("not network current player");

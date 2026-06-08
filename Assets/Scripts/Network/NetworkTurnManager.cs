@@ -42,12 +42,20 @@ public class NetworkTurnManager : NetworkBehaviour
     {
         gameplayUI.SetTurn((PlayerColor)playerIndex);
 
-        int localPlayerIndex =
-            NetworkPlayerSlotManager.Instance.GetPlayerIndex(
-                NetworkManager.Singleton.LocalClientId
-            );
+        int localPlayerIndex = -1;
 
-        if (localPlayerIndex == playerIndex)
+        if (NetworkManager.Singleton != null)
+        {
+            localPlayerIndex = NetworkPlayerSlotManager.Instance != null
+                ? NetworkPlayerSlotManager.Instance.GetPlayerIndex(NetworkManager.Singleton.LocalClientId)
+                : (int)NetworkManager.Singleton.LocalClientId;
+        }
+
+        bool playerActive =
+            NetworkRoomControlManager.Instance == null ||
+            NetworkRoomControlManager.Instance.IsPlayerActive(playerIndex);
+
+        if (localPlayerIndex == playerIndex && playerActive)
         {
             gameplayUI.SetMessage("Your turn");
         }
@@ -69,25 +77,24 @@ public class NetworkTurnManager : NetworkBehaviour
             NetworkDiceManager.Instance.ResetNetworkDice();
         }
 
+        int count = Mathf.Max(1, playerCount.Value);
         int nextPlayer = currentPlayerIndex.Value;
 
-        for (int i = 0; i < playerCount.Value; i++)
+        for (int i = 0; i < count; i++)
         {
             nextPlayer++;
 
-            if (nextPlayer >= playerCount.Value)
+            if (nextPlayer >= count)
                 nextPlayer = 0;
 
-            bool connected = true;
+            bool connected = NetworkPlayerSlotManager.Instance == null ||
+                NetworkPlayerSlotManager.Instance.IsPlayerConnected(nextPlayer);
+            bool active = NetworkRoomControlManager.Instance == null ||
+                NetworkRoomControlManager.Instance.IsPlayerActive(nextPlayer);
 
-            if (NetworkPlayerSlotManager.Instance != null)
-            {
-                connected = NetworkPlayerSlotManager.Instance.IsPlayerConnected(nextPlayer);
-            }
+            Debug.Log("Check next player " + nextPlayer + " connected=" + connected + " active=" + active);
 
-            Debug.Log("Check next player " + nextPlayer + " connected=" + connected);
-
-            if (connected)
+            if (connected && active)
             {
                 currentPlayerIndex.Value = nextPlayer;
                 break;

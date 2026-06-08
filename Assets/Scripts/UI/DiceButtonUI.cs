@@ -22,13 +22,18 @@ public class DiceButtonUI : MonoBehaviour
         }
 
         int currentPlayer = NetworkTurnManager.Instance.currentPlayerIndex.Value;
-        int localPlayer = (int)NetworkManager.Singleton.LocalClientId;
+        int localPlayer = NetworkPlayerSlotManager.Instance != null
+            ? NetworkPlayerSlotManager.Instance.GetPlayerIndex(NetworkManager.Singleton.LocalClientId)
+            : (int)NetworkManager.Singleton.LocalClientId;
 
         bool isMyTurn = localPlayer == currentPlayer;
+        bool isActive =
+            NetworkRoomControlManager.Instance == null ||
+            NetworkRoomControlManager.Instance.IsPlayerActive(localPlayer);
         bool hasNotRolled = networkDiceManager.totalValue.Value <= 0;
         bool gameWaitingRoll = GameManager.Instance.IsState(GameState.WaitingRoll);
 
-        bool canRoll = isMyTurn && hasNotRolled && gameWaitingRoll;
+        bool canRoll = isActive && isMyTurn && hasNotRolled && gameWaitingRoll;
 
         rollButton.interactable = canRoll;
         SetAlpha(canRoll ? 1f : 0.4f);

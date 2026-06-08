@@ -7,20 +7,27 @@ using Unity.Services.Core;
 using Unity.Services.Relay;
 using Unity.Services.Relay.Models;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class RelayManager : MonoBehaviour
 {
     public TMP_Text joinCodeText;
     public TMP_InputField joinCodeInput;
     public TMP_Text statusText;
+    public LoadingOverlay loadingOverlay;
     public string lobbySceneName = "LobbyScene";
+
+    string lastJoinCode;
+    string currentJoinCode;
+    bool isBusy;
 
     async void Start()
     {
-        await UnityServices.InitializeAsync();
+        SetBusy(true, "Connecting services...");
 
-        if (!AuthenticationService.Instance.IsSignedIn)
-            await AuthenticationService.Instance.SignInAnonymouslyAsync();
+        await EnsureUnityServicesReady();
+
+        SetBusy(false);
 
         SetStatus("Unity Services ready");
     }
@@ -32,14 +39,19 @@ public class RelayManager : MonoBehaviour
 
     async Task CreateRelayAsync()
     {
+        if (isBusy) return;
+
         try
         {
+            SetBusy(true, "Creating room...");
             SetStatus("Creating relay...");
+            await EnsureUnityServicesReady();
 
             var allocation = await RelayService.Instance.CreateAllocationAsync(3);
 
             string joinCode =
                 await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
+            currentJoinCode = joinCode;
 
             var transport =
                 NetworkManager.Singleton.GetComponent<UnityTransport>();
@@ -62,6 +74,10 @@ public class RelayManager : MonoBehaviour
         {
             SetStatus("Create relay failed: " + e.Message);
         }
+        finally
+        {
+            SetBusy(false);
+        }
     }
 
     public void JoinRelay()
@@ -71,6 +87,8 @@ public class RelayManager : MonoBehaviour
 
     async Task JoinRelayAsync()
     {
+        if (isBusy) return;
+
         try
         {
             string code = joinCodeInput.text.Trim();
@@ -81,10 +99,14 @@ public class RelayManager : MonoBehaviour
                 return;
             }
 
+            SetBusy(true, "Joining room...");
             SetStatus("Joining relay...");
+            await EnsureUnityServicesReady();
 
             var joinAllocation =
                 await RelayService.Instance.JoinAllocationAsync(code);
+
+            lastJoinCode = code;
 
             var transport =
                 NetworkManager.Singleton.GetComponent<UnityTransport>();
@@ -105,6 +127,108 @@ public class RelayManager : MonoBehaviour
         {
             SetStatus("Join relay failed: " + e.Message);
         }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    public void Reconnect()
+    {
+        _ = ReconnectAsync();
+    }
+
+    async Task ReconnectAsync()
+    {
+        if (isBusy) return;
+
+        string code = lastJoinCode;
+
+        if (string.IsNullOrWhiteSpace(code) && joinCodeInput != null)
+            code = joinCodeInput.text.Trim();
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            SetStatus("No room code to reconnect.");
+            return;
+        }
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            NetworkManager.Singleton.Shutdown();
+
+        if (joinCodeInput != null)
+            joinCodeInput.SetTextWithoutNotify(code);
+
+        await Task.Delay(250);
+        await JoinRelayAsync();
+    }
+
+    public void LeaveRoom()
+    {
+        _ = LeaveRoomAsync();
+    }
+
+    public void CopyJoinCode()
+    {
+        if (string.IsNullOrWhiteSpace(currentJoinCode))
+        {
+            SetStatus("No room code to copy.");
+            return;
+        }
+
+        GUIUtility.systemCopyBuffer = currentJoinCode;
+        SetStatus("Room code copied: " + currentJoinCode);
+    }
+
+    async Task LeaveRoomAsync()
+    {
+        if (isBusy) return;
+
+        SetBusy(true, "Leaving room...");
+        SetStatus("Leaving room...");
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            NetworkManager.Singleton.Shutdown();
+
+        await Task.Delay(250);
+
+        if (joinCodeText != null)
+            joinCodeText.text = "Code: -";
+
+        currentJoinCode = "";
+
+        SetStatus("Left room. Create or join another room.");
+        SetBusy(false);
+    }
+
+    public void BackToAuth()
+    {
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            NetworkManager.Singleton.Shutdown();
+
+        SceneManager.LoadScene("AuthScene");
+    }
+
+    async Task EnsureUnityServicesReady()
+    {
+        if (UnityServices.State == ServicesInitializationState.Uninitialized)
+            await UnityServices.InitializeAsync();
+
+        if (!AuthenticationService.Instance.IsSignedIn)
+            await AuthenticationService.Instance.SignInAnonymouslyAsync();
+    }
+
+    void SetBusy(bool busy, string message = "")
+    {
+        isBusy = busy;
+
+        if (loadingOverlay == null)
+            return;
+
+        if (busy)
+            loadingOverlay.Show(message);
+        else
+            loadingOverlay.Hide();
     }
 
     void SetStatus(string message)

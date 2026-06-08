@@ -11,6 +11,7 @@ public class LobbyManager : NetworkBehaviour
     public TMP_Text roomCodeText;
     public TMP_Text playerListText;
     public TMP_Text statusText;
+    public LoadingOverlay loadingOverlay;
 
     public NetworkList<FixedString32Bytes> playerNames;
     public NetworkList<bool> readyStates;
@@ -153,10 +154,15 @@ public class LobbyManager : NetworkBehaviour
     {
         if (!IsServer) return;
 
+        if (loadingOverlay != null)
+            loadingOverlay.Show("Starting game...");
+
         int count = Mathf.Min(playerNames.Count, readyStates.Count);
 
         if (count < 2)
         {
+            if (loadingOverlay != null)
+                loadingOverlay.Hide();
             SetStatusClientRpc("Need at least 2 players");
             return;
         }
@@ -165,6 +171,8 @@ public class LobbyManager : NetworkBehaviour
         {
             if (!readyStates[i])
             {
+                if (loadingOverlay != null)
+                    loadingOverlay.Hide();
                 SetStatusClientRpc("All players must ready");
                 return;
             }
@@ -173,6 +181,7 @@ public class LobbyManager : NetworkBehaviour
         PlayerPrefs.SetInt("PlayerCount", count);
 
         Debug.Log("Start game with player count: " + count);
+        ShowLoadingClientRpc("Starting game...");
 
         NetworkManager.Singleton.SceneManager.LoadScene(
             "GameScene",
@@ -185,5 +194,12 @@ public class LobbyManager : NetworkBehaviour
     {
         if (statusText != null)
             statusText.text = message;
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    void ShowLoadingClientRpc(string message)
+    {
+        if (loadingOverlay != null)
+            loadingOverlay.Show(message);
     }
 }

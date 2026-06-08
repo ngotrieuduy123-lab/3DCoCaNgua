@@ -136,6 +136,10 @@ public class NetworkDiceManager : NetworkBehaviour
             if (piece.playerIndex != currentPlayer)
                 continue;
 
+            if (NetworkRoomControlManager.Instance != null &&
+                !NetworkRoomControlManager.Instance.IsPlayerActive(piece.playerIndex))
+                continue;
+
             if (piece.isFinished)
                 continue;
 
@@ -183,8 +187,13 @@ public class NetworkDiceManager : NetworkBehaviour
     {
         int currentPlayer = NetworkTurnManager.Instance.currentPlayerIndex.Value;
 
-        int senderPlayerIndex =
-            NetworkPlayerSlotManager.Instance.GetPlayerIndex(senderClientId);
+        int senderPlayerIndex = NetworkPlayerSlotManager.Instance != null
+            ? NetworkPlayerSlotManager.Instance.GetPlayerIndex(senderClientId)
+            : (int)senderClientId;
+
+        if (NetworkRoomControlManager.Instance != null &&
+            !NetworkRoomControlManager.Instance.IsPlayerActive(senderPlayerIndex))
+            return false;
 
         if (senderPlayerIndex != currentPlayer)
             return false;

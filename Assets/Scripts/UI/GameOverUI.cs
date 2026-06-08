@@ -1,4 +1,5 @@
 using TMPro;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -7,7 +8,7 @@ public class GameOverUI : MonoBehaviour
     public GameObject gameOverPanel;
     public TMP_Text rankingText;
 
-    public string mainMenuSceneName = "MainMenu";
+    public string mainMenuSceneName = "LobbyScene";
 
     void Start()
     {
@@ -22,16 +23,35 @@ public class GameOverUI : MonoBehaviour
 
     public void RestartGame()
     {
+        if (NetworkManager.Singleton != null &&
+            NetworkManager.Singleton.IsListening &&
+            NetworkManager.Singleton.IsServer)
+        {
+            NetworkManager.Singleton.SceneManager.LoadScene(
+                SceneManager.GetActiveScene().name,
+                LoadSceneMode.Single
+            );
+            return;
+        }
+
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
     public void BackToMainMenu()
     {
-        if (Unity.Netcode.NetworkManager.Singleton != null &&
-            Unity.Netcode.NetworkManager.Singleton.IsListening)
+        if (NetworkManager.Singleton != null &&
+            NetworkManager.Singleton.IsListening &&
+            NetworkManager.Singleton.IsServer)
         {
-            Unity.Netcode.NetworkManager.Singleton.Shutdown();
+            NetworkManager.Singleton.SceneManager.LoadScene(
+                mainMenuSceneName,
+                LoadSceneMode.Single
+            );
+            return;
         }
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            NetworkManager.Singleton.Shutdown();
 
         SceneManager.LoadScene(mainMenuSceneName);
     }

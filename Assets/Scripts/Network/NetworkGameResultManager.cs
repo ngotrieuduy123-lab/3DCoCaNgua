@@ -47,6 +47,10 @@ public class NetworkGameResultManager : NetworkBehaviour
 
         for (int i = 0; i < NetworkTurnManager.Instance.playerCount.Value; i++)
         {
+            if (NetworkRoomControlManager.Instance != null &&
+                !NetworkRoomControlManager.Instance.IsPlayerActive(i))
+                continue;
+
             if (!finishOrder.Contains(i))
             {
                 activeCount++;
