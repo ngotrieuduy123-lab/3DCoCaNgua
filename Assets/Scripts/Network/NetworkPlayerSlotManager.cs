@@ -66,6 +66,9 @@ public class NetworkPlayerSlotManager : NetworkBehaviour
         }
 
         connectedPlayers[playerIndex] = false;
+        clientToPlayerIndex.Remove(clientId);
+        playerIndexToClient.Remove(playerIndex);
+
         ReturnDisconnectedPlayerPieces(playerIndex);
 
         Debug.Log("Connected status: Blue=" + connectedPlayers[0]
@@ -112,7 +115,7 @@ public class NetworkPlayerSlotManager : NetworkBehaviour
 
         for (int i = 0; i < 4; i++)
         {
-            if (!playerIndexToClient.ContainsKey(i))
+            if (!playerIndexToClient.ContainsKey(i) || !connectedPlayers[i])
             {
                 clientToPlayerIndex[clientId] = i;
                 playerIndexToClient[i] = clientId;

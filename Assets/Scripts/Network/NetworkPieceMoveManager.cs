@@ -29,7 +29,7 @@ public class NetworkPieceMoveManager : NetworkBehaviour
         }
 
         ulong senderClientId = rpcParams.Receive.SenderClientId;
-        int senderPlayerIndex = NetworkPlayerSlotManager.Instance.GetPlayerIndex(senderClientId);
+        int senderPlayerIndex = NetworkPlayerIndexUtility.GetPlayerIndex(senderClientId);
 
         if (senderPlayerIndex == -1)
         {

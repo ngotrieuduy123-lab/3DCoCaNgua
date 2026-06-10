@@ -21,6 +21,7 @@ public class NetworkRoomControlManager : NetworkBehaviour
     public NetworkList<int> activePlayers;
 
     bool localReturnedToLobby;
+    bool roomStopStarted;
 
     void Awake()
     {
@@ -105,7 +106,7 @@ public class NetworkRoomControlManager : NetworkBehaviour
 
         if (IsServer)
         {
-            HandlePlayerOutServer(NetworkManager.Singleton.LocalClientId, true);
+            StopRoomServer("Host left. Returning to lobby.", "Host left room");
             return;
         }
 
@@ -120,36 +121,16 @@ public class NetworkRoomControlManager : NetworkBehaviour
 
     public void RequestStopRoom()
     {
-        if (NetworkManager.Singleton == null)
-            return;
-
-        int localPlayerIndex = GetLocalPlayerIndex();
-
-        if (localPlayerIndex != roomOwnerPlayerIndex.Value)
-        {
-            SetStatus("Only the room owner can stop the room.");
-            return;
-        }
-
-        if (loadingOverlay != null)
-            loadingOverlay.Show("Stopping room...");
-
-        if (IsServer)
-        {
-            StopRoomServer("Room stopped by owner.");
-            return;
-        }
-
-        RequestStopRoomRpc();
+        RequestOutRoom();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     void RequestStopRoomRpc(RpcParams rpcParams = default)
     {
-        if (GetPlayerIndex(rpcParams.Receive.SenderClientId) != roomOwnerPlayerIndex.Value)
+        if (GetPlayerIndex(rpcParams.Receive.SenderClientId) != 0)
             return;
 
-        StopRoomServer("Room stopped by owner.");
+        StopRoomServer("Host left. Returning to lobby.", "Host left room");
     }
 
     void HandlePlayerOutServer(ulong clientId, bool requestedByPlayer)
@@ -165,14 +146,17 @@ public class NetworkRoomControlManager : NetworkBehaviour
         RemoveActivePlayer(playerIndex);
         SetPlayerPiecesActiveRpc(playerIndex, false);
 
-        if (roomOwnerPlayerIndex.Value == playerIndex)
-            TransferOwnerServer();
+        if (playerIndex == 0)
+        {
+            StopRoomServer("Host left. Returning to lobby.", "Host left room");
+            return;
+        }
 
         int activeCount = activePlayers.Count;
 
         if (activeCount < 2)
         {
-            StopRoomServer("Not enough players. Returning to lobby.");
+            StopRoomServer("Not enough players. Returning to lobby.", "Not enough players");
             return;
         }
 
@@ -200,16 +184,21 @@ public class NetworkRoomControlManager : NetworkBehaviour
         }
     }
 
-    void TransferOwnerServer()
+    async void StopRoomServer(string message, string endReason)
     {
-        if (activePlayers.Count <= 0)
+        if (roomStopStarted)
             return;
 
-        roomOwnerPlayerIndex.Value = activePlayers[0];
-    }
+        roomStopStarted = true;
 
-    void StopRoomServer(string message)
-    {
+        if (DatabaseManager.Instance != null)
+        {
+            string matchHistoryId = PlayerPrefs.GetString("CurrentMatchHistoryId", "");
+            await DatabaseManager.Instance.EndMatchHistory(matchHistoryId, endReason);
+            PlayerPrefs.DeleteKey("CurrentMatchHistoryId");
+            PlayerPrefs.Save();
+        }
+
         StopRoomRpc(message);
     }
 
@@ -234,7 +223,7 @@ public class NetworkRoomControlManager : NetworkBehaviour
             if (loadingOverlay != null)
                 loadingOverlay.Hide();
 
-            SetStatus("You left as a player. Keep this window open so the room can continue.");
+            SetStatus("Host left. Room is closing.");
             UpdateLocalControls();
             return;
         }
@@ -298,8 +287,8 @@ public class NetworkRoomControlManager : NetworkBehaviour
 
         if (stopRoomButton != null)
         {
-            stopRoomButton.gameObject.SetActive(isOwner && localActive && !localReturnedToLobby);
-            stopRoomButton.interactable = isOwner && localActive && !localReturnedToLobby;
+            stopRoomButton.gameObject.SetActive(false);
+            stopRoomButton.interactable = false;
         }
     }
 
@@ -313,17 +302,11 @@ public class NetworkRoomControlManager : NetworkBehaviour
 
     int GetLocalPlayerIndex()
     {
-        if (NetworkManager.Singleton == null)
-            return -1;
-
-        return GetPlayerIndex(NetworkManager.Singleton.LocalClientId);
+        return NetworkPlayerIndexUtility.GetLocalPlayerIndex();
     }
 
     int GetPlayerIndex(ulong clientId)
     {
-        if (NetworkPlayerSlotManager.Instance != null)
-            return NetworkPlayerSlotManager.Instance.GetPlayerIndex(clientId);
-
-        return clientId <= int.MaxValue ? (int)clientId : -1;
+        return NetworkPlayerIndexUtility.GetPlayerIndex(clientId);
     }
 }

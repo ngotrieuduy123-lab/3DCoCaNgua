@@ -14,12 +14,14 @@ public class DatabaseManager : MonoBehaviour
     [SerializeField] private string connectionString = "";
     [SerializeField] private string databaseName = "LudoGameDB";
     [SerializeField] private string collectionName = "Players";
+    [SerializeField] private string matchHistoryCollectionName = "MatchHistories";
 
     public PlayerData CurrentPlayer { get; private set; }
     public string LastMessage { get; private set; }
     public bool IsConnected => playerCollection != null;
 
     private IMongoCollection<PlayerData> playerCollection;
+    private IMongoCollection<MatchHistoryData> matchHistoryCollection;
 
     void Awake()
     {
@@ -51,6 +53,7 @@ public class DatabaseManager : MonoBehaviour
             MongoClient client = new MongoClient(resolvedConnectionString);
             IMongoDatabase database = client.GetDatabase(databaseName);
             playerCollection = database.GetCollection<PlayerData>(collectionName);
+            matchHistoryCollection = database.GetCollection<MatchHistoryData>(matchHistoryCollectionName);
             EnsureIndexes();
 
             LastMessage = "Connected to MongoDB.";
@@ -59,6 +62,7 @@ public class DatabaseManager : MonoBehaviour
         catch (Exception e)
         {
             playerCollection = null;
+            matchHistoryCollection = null;
             LastMessage = "MongoDB connection failed: " + e.Message;
             Debug.LogError(LastMessage);
         }
@@ -113,6 +117,98 @@ public class DatabaseManager : MonoBehaviour
         catch (Exception e)
         {
             return Fail("Register failed: " + e.Message);
+        }
+    }
+
+    public async Task<string> BeginMatchHistory(int playerCount)
+    {
+        if (!EnsureMatchHistoryCollectionReady(out string databaseMessage))
+        {
+            Debug.LogWarning(databaseMessage);
+            return "";
+        }
+
+        try
+        {
+            DateTime utcNow = DateTime.UtcNow;
+            DateTime localNow = DateTime.Now;
+
+            MatchHistoryData matchHistory = new MatchHistoryData
+            {
+                Id = ObjectId.GenerateNewId().ToString(),
+                HostPlayerId = CurrentPlayer != null ? CurrentPlayer.Id : PlayerPrefs.GetString("PlayerId", ""),
+                HostUsername = CurrentPlayer != null ? CurrentPlayer.Username : PlayerPrefs.GetString("Username", ""),
+                PlayerCount = playerCount,
+                StartedAtUtc = utcNow,
+                StartedAtLocal = localNow,
+                StartedAtText = FormatLocalTime(localNow),
+                Status = "Playing"
+            };
+
+            await matchHistoryCollection.InsertOneAsync(matchHistory);
+
+            LastMessage = "Match history started.";
+            Debug.Log(LastMessage + " Id=" + matchHistory.Id);
+            return matchHistory.Id;
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning("Begin match history failed: " + e.Message);
+            return "";
+        }
+    }
+
+    public async Task<bool> EndMatchHistory(string matchHistoryId, string endReason)
+    {
+        if (string.IsNullOrWhiteSpace(matchHistoryId))
+            return false;
+
+        if (!EnsureMatchHistoryCollectionReady(out string databaseMessage))
+        {
+            Debug.LogWarning(databaseMessage);
+            return false;
+        }
+
+        try
+        {
+            MatchHistoryData matchHistory = await matchHistoryCollection
+                .Find(m => m.Id == matchHistoryId)
+                .FirstOrDefaultAsync();
+
+            if (matchHistory == null)
+            {
+                Debug.LogWarning("Match history not found: " + matchHistoryId);
+                return false;
+            }
+
+            if (matchHistory.EndedAtUtc.HasValue)
+                return true;
+
+            DateTime utcNow = DateTime.UtcNow;
+            DateTime localNow = DateTime.Now;
+            int durationSeconds = Mathf.Max(
+                0,
+                Mathf.RoundToInt((float)(utcNow - matchHistory.StartedAtUtc).TotalSeconds)
+            );
+
+            UpdateDefinition<MatchHistoryData> update = Builders<MatchHistoryData>.Update
+                .Set(m => m.EndedAtUtc, utcNow)
+                .Set(m => m.EndedAtLocal, localNow)
+                .Set(m => m.EndedAtText, FormatLocalTime(localNow))
+                .Set(m => m.DurationSeconds, durationSeconds)
+                .Set(m => m.EndReason, endReason)
+                .Set(m => m.Status, "Ended");
+
+            await matchHistoryCollection.UpdateOneAsync(m => m.Id == matchHistoryId, update);
+
+            LastMessage = "Match history ended.";
+            Debug.Log(LastMessage + " Id=" + matchHistoryId);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning("End match history failed: " + e.Message);
+            return false;
         }
     }
 
@@ -189,6 +285,13 @@ public class DatabaseManager : MonoBehaviour
             CreateIndexOptions options = new CreateIndexOptions { Unique = true };
             CreateIndexModel<PlayerData> model = new CreateIndexModel<PlayerData>(keys, options);
             playerCollection.Indexes.CreateOne(model);
+
+            if (matchHistoryCollection != null)
+            {
+                IndexKeysDefinition<MatchHistoryData> startedAtKeys =
+                    Builders<MatchHistoryData>.IndexKeys.Descending(m => m.StartedAtUtc);
+                matchHistoryCollection.Indexes.CreateOne(new CreateIndexModel<MatchHistoryData>(startedAtKeys));
+            }
         }
         catch (Exception e)
         {
@@ -214,6 +317,31 @@ public class DatabaseManager : MonoBehaviour
 
         message = LastMessage;
         return false;
+    }
+
+    bool EnsureMatchHistoryCollectionReady(out string message)
+    {
+        if (matchHistoryCollection != null)
+        {
+            message = "";
+            return true;
+        }
+
+        ConnectToDatabase();
+
+        if (matchHistoryCollection != null)
+        {
+            message = "";
+            return true;
+        }
+
+        message = LastMessage;
+        return false;
+    }
+
+    static string FormatLocalTime(DateTime value)
+    {
+        return value.ToString("dd/MM/yyyy HH:mm:ss");
     }
 
     static bool ValidateCredentials(string username, string password, out string message)

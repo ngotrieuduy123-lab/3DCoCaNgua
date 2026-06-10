@@ -187,9 +187,7 @@ public class NetworkDiceManager : NetworkBehaviour
     {
         int currentPlayer = NetworkTurnManager.Instance.currentPlayerIndex.Value;
 
-        int senderPlayerIndex = NetworkPlayerSlotManager.Instance != null
-            ? NetworkPlayerSlotManager.Instance.GetPlayerIndex(senderClientId)
-            : (int)senderClientId;
+        int senderPlayerIndex = NetworkPlayerIndexUtility.GetPlayerIndex(senderClientId);
 
         if (NetworkRoomControlManager.Instance != null &&
             !NetworkRoomControlManager.Instance.IsPlayerActive(senderPlayerIndex))

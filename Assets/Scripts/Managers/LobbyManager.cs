@@ -13,19 +13,24 @@ public class LobbyManager : NetworkBehaviour
     public TMP_Text statusText;
     public LoadingOverlay loadingOverlay;
 
+    public NetworkList<ulong> playerClientIds;
     public NetworkList<FixedString32Bytes> playerNames;
     public NetworkList<bool> readyStates;
+
+    bool isStartingGame;
 
     void Awake()
     {
         Instance = this;
 
+        playerClientIds = new NetworkList<ulong>();
         playerNames = new NetworkList<FixedString32Bytes>();
         readyStates = new NetworkList<bool>();
     }
 
     public override void OnNetworkSpawn()
     {
+        playerClientIds.OnListChanged += OnPlayerClientListChanged;
         playerNames.OnListChanged += OnPlayerListChanged;
         readyStates.OnListChanged += OnReadyListChanged;
 
@@ -34,13 +39,13 @@ public class LobbyManager : NetworkBehaviour
             NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
 
+            playerClientIds.Clear();
             playerNames.Clear();
             readyStates.Clear();
 
             foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
             {
-                readyStates.Add(false);
-                playerNames.Add("Player " + client.ClientId);
+                AddPlayer(client.ClientId);
             }
         }
 
@@ -49,6 +54,7 @@ public class LobbyManager : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        playerClientIds.OnListChanged -= OnPlayerClientListChanged;
         playerNames.OnListChanged -= OnPlayerListChanged;
         readyStates.OnListChanged -= OnReadyListChanged;
 
@@ -63,16 +69,7 @@ public class LobbyManager : NetworkBehaviour
     {
         if (!IsServer) return;
 
-        string name = "Player " + clientId;
-
-        for (int i = 0; i < playerNames.Count; i++)
-        {
-            if (playerNames[i].ToString() == name)
-                return;
-        }
-
-        readyStates.Add(false);
-        playerNames.Add(name);
+        AddPlayer(clientId);
 
         RefreshPlayerList();
     }
@@ -85,10 +82,16 @@ public class LobbyManager : NetworkBehaviour
 
         if (index >= 0)
         {
+            playerClientIds.RemoveAt(index);
             playerNames.RemoveAt(index);
             readyStates.RemoveAt(index);
         }
 
+        RefreshPlayerList();
+    }
+
+    void OnPlayerClientListChanged(NetworkListEvent<ulong> change)
+    {
         RefreshPlayerList();
     }
 
@@ -108,15 +111,17 @@ public class LobbyManager : NetworkBehaviour
 
         string text = "";
 
-        int count = Mathf.Min(playerNames.Count, readyStates.Count);
+        int count = GetPlayerCount();
 
         for (int i = 0; i < count; i++)
         {
             string ready = readyStates[i] ? "[READY]" : "[NOT READY]";
-            text += playerNames[i].ToString() + " " + ready + "\n";
+            text += "Player " + i + " " + ready + "\n";
         }
 
         playerListText.text = text;
+
+        CacheLocalPlayerIndex();
     }
 
     public void ToggleReady()
@@ -139,31 +144,33 @@ public class LobbyManager : NetworkBehaviour
 
     int GetPlayerIndexByClientId(ulong clientId)
     {
-        string targetName = "Player " + clientId;
-
-        for (int i = 0; i < playerNames.Count; i++)
+        for (int i = 0; i < playerClientIds.Count; i++)
         {
-            if (playerNames[i].ToString() == targetName)
+            if (playerClientIds[i] == clientId)
                 return i;
         }
 
         return -1;
     }
 
-    public void StartGame()
+    public async void StartGame()
     {
         if (!IsServer) return;
+        if (isStartingGame) return;
+
+        isStartingGame = true;
 
         if (loadingOverlay != null)
             loadingOverlay.Show("Starting game...");
 
-        int count = Mathf.Min(playerNames.Count, readyStates.Count);
+        int count = GetPlayerCount();
 
         if (count < 2)
         {
             if (loadingOverlay != null)
                 loadingOverlay.Hide();
             SetStatusClientRpc("Need at least 2 players");
+            isStartingGame = false;
             return;
         }
 
@@ -174,11 +181,22 @@ public class LobbyManager : NetworkBehaviour
                 if (loadingOverlay != null)
                     loadingOverlay.Hide();
                 SetStatusClientRpc("All players must ready");
+                isStartingGame = false;
                 return;
             }
         }
 
+        CachePlayerMappingsForGame();
         PlayerPrefs.SetInt("PlayerCount", count);
+
+        if (DatabaseManager.Instance != null)
+        {
+            PlayerPrefs.DeleteKey("CurrentMatchHistoryId");
+            string matchHistoryId = await DatabaseManager.Instance.BeginMatchHistory(count);
+
+            if (!string.IsNullOrWhiteSpace(matchHistoryId))
+                PlayerPrefs.SetString("CurrentMatchHistoryId", matchHistoryId);
+        }
 
         Debug.Log("Start game with player count: " + count);
         ShowLoadingClientRpc("Starting game...");
@@ -201,5 +219,63 @@ public class LobbyManager : NetworkBehaviour
     {
         if (loadingOverlay != null)
             loadingOverlay.Show(message);
+    }
+
+    void AddPlayer(ulong clientId)
+    {
+        if (GetPlayerIndexByClientId(clientId) >= 0)
+            return;
+
+        int nextIndex = GetPlayerCount();
+
+        if (nextIndex >= 4)
+        {
+            Debug.Log("Lobby full. Reject extra player: " + clientId);
+            return;
+        }
+
+        playerClientIds.Add(clientId);
+        playerNames.Add("Player " + nextIndex);
+        readyStates.Add(false);
+
+        CachePlayerMappingsForGame();
+    }
+
+    int GetPlayerCount()
+    {
+        return Mathf.Min(playerClientIds.Count, readyStates.Count);
+    }
+
+    void CacheLocalPlayerIndex()
+    {
+        if (NetworkManager.Singleton == null)
+            return;
+
+        int localIndex = GetPlayerIndexByClientId(NetworkManager.Singleton.LocalClientId);
+
+        if (localIndex < 0)
+            return;
+
+        PlayerPrefs.SetInt("LocalPlayerIndex", localIndex);
+        PlayerPrefs.SetInt(
+            "PlayerIndexForClient_" + NetworkManager.Singleton.LocalClientId,
+            localIndex
+        );
+        PlayerPrefs.Save();
+    }
+
+    void CachePlayerMappingsForGame()
+    {
+        int count = GetPlayerCount();
+
+        for (int i = 0; i < count; i++)
+        {
+            PlayerPrefs.SetInt("PlayerIndexForClient_" + playerClientIds[i], i);
+        }
+
+        if (NetworkManager.Singleton != null)
+            CacheLocalPlayerIndex();
+
+        PlayerPrefs.Save();
     }
 }

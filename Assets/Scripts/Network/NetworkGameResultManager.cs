@@ -30,7 +30,7 @@ public class NetworkGameResultManager : NetworkBehaviour
                 count++;
         }
 
-        if (count >= 4)
+        if (count >= 1)
         {
             AddFinishedPlayer(playerIndex);
         }
@@ -65,8 +65,24 @@ public class NetworkGameResultManager : NetworkBehaviour
 
             isGameOver = true;
 
+            EndMatchHistory("Game finished");
             ShowGameOverClientRpc(GetRankingText());
         }
+    }
+
+    async void EndMatchHistory(string reason)
+    {
+        if (DatabaseManager.Instance == null)
+            return;
+
+        string matchHistoryId = PlayerPrefs.GetString("CurrentMatchHistoryId", "");
+
+        if (string.IsNullOrWhiteSpace(matchHistoryId))
+            return;
+
+        await DatabaseManager.Instance.EndMatchHistory(matchHistoryId, reason);
+        PlayerPrefs.DeleteKey("CurrentMatchHistoryId");
+        PlayerPrefs.Save();
     }
 
     string GetRankingText()

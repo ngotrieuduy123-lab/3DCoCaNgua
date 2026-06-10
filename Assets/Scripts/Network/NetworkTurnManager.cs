@@ -46,9 +46,7 @@ public class NetworkTurnManager : NetworkBehaviour
 
         if (NetworkManager.Singleton != null)
         {
-            localPlayerIndex = NetworkPlayerSlotManager.Instance != null
-                ? NetworkPlayerSlotManager.Instance.GetPlayerIndex(NetworkManager.Singleton.LocalClientId)
-                : (int)NetworkManager.Singleton.LocalClientId;
+            localPlayerIndex = NetworkPlayerIndexUtility.GetLocalPlayerIndex();
         }
 
         bool playerActive =

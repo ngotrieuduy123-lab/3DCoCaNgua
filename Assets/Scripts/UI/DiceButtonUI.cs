@@ -22,9 +22,7 @@ public class DiceButtonUI : MonoBehaviour
         }
 
         int currentPlayer = NetworkTurnManager.Instance.currentPlayerIndex.Value;
-        int localPlayer = NetworkPlayerSlotManager.Instance != null
-            ? NetworkPlayerSlotManager.Instance.GetPlayerIndex(NetworkManager.Singleton.LocalClientId)
-            : (int)NetworkManager.Singleton.LocalClientId;
+        int localPlayer = NetworkPlayerIndexUtility.GetLocalPlayerIndex();
 
         bool isMyTurn = localPlayer == currentPlayer;
         bool isActive =
