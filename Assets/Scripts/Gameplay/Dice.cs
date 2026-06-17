@@ -44,7 +44,9 @@ public class Dice : MonoBehaviour
         if (!isRolling)
         {
             StartCoroutine(RollRoutine());
-            SoundManager.Instance.PlayDice();
+
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.PlayDice();
         }
     }
 

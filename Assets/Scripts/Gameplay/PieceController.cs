@@ -1,6 +1,8 @@
 using System.Collections;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class PieceController : NetworkBehaviour
 {
@@ -31,11 +33,44 @@ public class PieceController : NetworkBehaviour
 
     private Vector3 stablePosition;
     private Vector3 originalScale;
+    private Coroutine highlightRoutine;
+    private readonly List<GameObject> outlineObjects = new List<GameObject>();
+    private Material outlineMaterial;
+
+    void Awake()
+    {
+        NormalizeStableState();
+        CacheOriginalTransform();
+    }
 
     void Start()
     {
+        NormalizeStableState();
+        CacheOriginalTransform();
+    }
+
+    void NormalizeStableState()
+    {
+        if (!isInStable)
+            return;
+
+        currentIndex = -1;
+        homeIndex = -1;
+        isInHomePath = false;
+        stepsMoved = 0;
+        isFinished = false;
+    }
+
+    void CacheOriginalTransform()
+    {
         stablePosition = transform.position;
         originalScale = transform.localScale;
+    }
+
+    void EnsureOriginalTransform()
+    {
+        if (originalScale == Vector3.zero)
+            originalScale = transform.localScale == Vector3.zero ? Vector3.one : transform.localScale;
     }
 
     public bool CanSpawn()
@@ -53,6 +88,8 @@ public class PieceController : NetworkBehaviour
 
     public void SpawnToStart()
     {
+        EnsureOriginalTransform();
+
         if (!CanSpawn()) return;
 
         PieceController enemy = board.GetEnemyPieceAt(playerIndex, startIndex);
@@ -88,10 +125,14 @@ public class PieceController : NetworkBehaviour
         }
         transform.localScale = originalScale;
         isSelected = false;
+
+        SyncStateToClients();
     }
 
     public void SelectPiece()
     {
+        EnsureOriginalTransform();
+
         if (isMoving || isSelected) return;
 
         isSelected = true;
@@ -101,6 +142,8 @@ public class PieceController : NetworkBehaviour
 
     public void UnselectPiece()
     {
+        EnsureOriginalTransform();
+
         transform.localScale = originalScale;
 
         if (isInStable)
@@ -267,10 +310,14 @@ public class PieceController : NetworkBehaviour
         transform.localScale = originalScale;
         isMoving = false;
         isSelected = false;
+
+        SyncStateToClients();
     }
 
     public void ReturnToStable()
     {
+        EnsureOriginalTransform();
+
         isInStable = true;
         isInHomePath = false;
         currentIndex = -1;
@@ -282,6 +329,8 @@ public class PieceController : NetworkBehaviour
 
         transform.position = stablePosition;
         transform.localScale = originalScale;
+
+        SyncStateToClients();
     }
 
     public void CheckKickEnemy()
@@ -355,12 +404,246 @@ public class PieceController : NetworkBehaviour
                 + " home=" + (homeIndex + 1)
                 + " finishedCount=" + board.playerFinishCount[playerIndex]);
         }
+
+        SyncStateToClients();
+    }
+
+    void SyncStateToClients()
+    {
+        if (NetworkManager.Singleton == null ||
+            !NetworkManager.Singleton.IsListening ||
+            !IsSpawned ||
+            !IsServer)
+            return;
+
+        SyncStateRpc(
+            currentIndex,
+            stepsMoved,
+            homeIndex,
+            isInStable,
+            isInHomePath,
+            isFinished,
+            isMoving,
+            isSelected,
+            transform.position,
+            transform.localScale
+        );
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    void SyncStateRpc(
+        int syncedCurrentIndex,
+        int syncedStepsMoved,
+        int syncedHomeIndex,
+        bool syncedIsInStable,
+        bool syncedIsInHomePath,
+        bool syncedIsFinished,
+        bool syncedIsMoving,
+        bool syncedIsSelected,
+        Vector3 syncedPosition,
+        Vector3 syncedScale)
+    {
+        currentIndex = syncedCurrentIndex;
+        stepsMoved = syncedStepsMoved;
+        homeIndex = syncedHomeIndex;
+        isInStable = syncedIsInStable;
+        isInHomePath = syncedIsInHomePath;
+        isFinished = syncedIsFinished;
+        isMoving = syncedIsMoving;
+        isSelected = syncedIsSelected;
+        transform.position = syncedPosition;
+        transform.localScale = syncedScale;
     }
 
     public void SetHighlight(bool active)
     {
-        if (pieceRenderer == null) return;
+        EnsureOriginalTransform();
 
-        pieceRenderer.material = active ? highlightMaterial : normalMaterial;
+        if (highlightRoutine != null)
+        {
+            StopCoroutine(highlightRoutine);
+            highlightRoutine = null;
+        }
+
+        if (!active)
+        {
+            transform.localScale = isSelected ? originalScale * 1.15f : originalScale;
+            SetOutlineVisible(false, 0.35f, 1f);
+            return;
+        }
+
+        EnsureOutlineObjects();
+
+        if (outlineObjects.Count == 0)
+            return;
+
+        highlightRoutine = StartCoroutine(BlinkHighlightRoutine());
+    }
+
+    IEnumerator BlinkHighlightRoutine()
+    {
+        float blinkTime = Random.Range(0f, 1f);
+
+        while (true)
+        {
+            blinkTime += Time.deltaTime * 6f;
+            float pulse = (Mathf.Sin(blinkTime) + 1f) * 0.5f;
+            float alpha = Mathf.Lerp(0.28f, 0.9f, pulse);
+            float scale = Mathf.Lerp(1.08f, 1.18f, pulse);
+
+            SetOutlineVisible(true, alpha, scale);
+            yield return null;
+        }
+    }
+
+    void EnsureOutlineObjects()
+    {
+        if (outlineObjects.Count > 0)
+            return;
+
+        outlineMaterial = CreateOutlineMaterial();
+
+        if (outlineMaterial == null)
+            return;
+
+        MeshFilter[] meshFilters = GetComponentsInChildren<MeshFilter>(true);
+
+        foreach (MeshFilter sourceFilter in meshFilters)
+        {
+            if (sourceFilter == null ||
+                sourceFilter.sharedMesh == null ||
+                sourceFilter.gameObject.name.Contains("MoveOutline"))
+                continue;
+
+            Renderer sourceRenderer = sourceFilter.GetComponent<Renderer>();
+
+            if (sourceRenderer == null)
+                continue;
+
+            GameObject outline = new GameObject("MoveOutline");
+            SetIgnoreRaycastLayer(outline);
+            outline.transform.SetParent(sourceFilter.transform, false);
+            outline.transform.localPosition = Vector3.zero;
+            outline.transform.localRotation = Quaternion.identity;
+            outline.transform.localScale = Vector3.one * 1.12f;
+
+            MeshFilter outlineFilter = outline.AddComponent<MeshFilter>();
+            outlineFilter.sharedMesh = sourceFilter.sharedMesh;
+
+            MeshRenderer outlineRenderer = outline.AddComponent<MeshRenderer>();
+            outlineRenderer.sharedMaterial = outlineMaterial;
+            outlineRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            outlineRenderer.receiveShadows = false;
+            outlineRenderer.enabled = false;
+
+            outlineObjects.Add(outline);
+        }
+    }
+
+    void SetIgnoreRaycastLayer(GameObject target)
+    {
+        int ignoreRaycastLayer = LayerMask.NameToLayer("Ignore Raycast");
+
+        if (ignoreRaycastLayer >= 0 && target != null)
+            target.layer = ignoreRaycastLayer;
+    }
+
+    Material CreateOutlineMaterial()
+    {
+        Material material = null;
+        Shader shader = FindHighlightShader();
+
+        if (shader != null)
+            material = new Material(shader);
+        else if (highlightMaterial != null)
+            material = new Material(highlightMaterial);
+        else if (normalMaterial != null)
+            material = new Material(normalMaterial);
+        else if (pieceRenderer != null && pieceRenderer.sharedMaterial != null)
+            material = new Material(pieceRenderer.sharedMaterial);
+
+        if (material == null)
+        {
+            Debug.LogWarning("Could not create highlight material for " + name);
+            return null;
+        }
+
+        ConfigureTransparentMaterial(material);
+        SetMaterialColor(material, new Color(1f, 0.92f, 0.12f, 0.45f));
+        return material;
+    }
+
+    Shader FindHighlightShader()
+    {
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader != null) return shader;
+
+        shader = Shader.Find("Unlit/Color");
+        if (shader != null) return shader;
+
+        shader = Shader.Find("Sprites/Default");
+        if (shader != null) return shader;
+
+        shader = Shader.Find("UI/Default");
+        if (shader != null) return shader;
+
+        shader = Shader.Find("Hidden/Internal-Colored");
+        if (shader != null) return shader;
+
+        return Shader.Find("Standard");
+    }
+
+    void ConfigureTransparentMaterial(Material material)
+    {
+        if (material == null)
+            return;
+
+        if (material.HasProperty("_Surface"))
+            material.SetFloat("_Surface", 1f);
+
+        if (material.HasProperty("_Mode"))
+            material.SetFloat("_Mode", 3f);
+
+        if (material.HasProperty("_SrcBlend"))
+            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+
+        if (material.HasProperty("_DstBlend"))
+            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+
+        if (material.HasProperty("_ZWrite"))
+            material.SetInt("_ZWrite", 0);
+
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.renderQueue = (int)RenderQueue.Transparent;
+    }
+
+    void SetMaterialColor(Material material, Color color)
+    {
+        if (material == null)
+            return;
+
+        if (material.HasProperty("_BaseColor"))
+            material.SetColor("_BaseColor", color);
+
+        if (material.HasProperty("_Color"))
+            material.SetColor("_Color", color);
+    }
+
+    void SetOutlineVisible(bool visible, float alpha, float scale)
+    {
+        if (outlineMaterial != null)
+            SetMaterialColor(outlineMaterial, new Color(1f, 0.92f, 0.12f, alpha));
+
+        foreach (GameObject outline in outlineObjects)
+        {
+            if (outline == null)
+                continue;
+
+            outline.transform.localScale = Vector3.one * scale;
+
+            Renderer outlineRenderer = outline.GetComponent<Renderer>();
+            if (outlineRenderer != null)
+                outlineRenderer.enabled = visible;
+        }
     }
 }

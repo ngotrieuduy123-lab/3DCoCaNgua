@@ -110,26 +110,27 @@ public class DiceManager : MonoBehaviour
 
     public bool IsDouble()
     {
-        return dice1.value == dice2.value;
+        return DiceRuleUtility.IsDouble(dice1.value, dice2.value);
     }
 
     public bool IsOneSix()
     {
-        return (dice1.value == 1 && dice2.value == 6) ||
-               (dice1.value == 6 && dice2.value == 1);
+        return DiceRuleUtility.IsOneSix(dice1.value, dice2.value);
     }
 
     public bool CanSpawnPiece()
     {
-        return IsDouble() || IsOneSix();
+        return DiceRuleUtility.CanEnterBoardOrClimb(dice1.value, dice2.value);
     }
 
     public bool CanClimbHome()
     {
-        return IsDouble() || IsOneSix();
+        return DiceRuleUtility.CanEnterBoardOrClimb(dice1.value, dice2.value);
     }
     public void ClearHighlights()
     {
+        MovePathHighlighter.TryClear();
+
         foreach (PieceController piece in pieces)
         {
             piece.SetHighlight(false);
@@ -158,6 +159,16 @@ public class DiceManager : MonoBehaviour
                 canUse = piece.CanMove(totalValue);
 
             piece.SetHighlight(canUse);
+
+            if (canUse)
+            {
+                MovePathHighlighter.Instance.ShowMovePreview(
+                    piece,
+                    totalValue,
+                    CanSpawnPiece(),
+                    CanClimbHome()
+                );
+            }
         }
     }
 }

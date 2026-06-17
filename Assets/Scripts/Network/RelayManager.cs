@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Threading.Tasks;
 using TMPro;
 using Unity.Netcode;
@@ -20,9 +21,31 @@ public class RelayManager : MonoBehaviour
     string lastJoinCode;
     string currentJoinCode;
     bool isBusy;
+    bool disconnectCallbackRegistered;
+    bool observedClientConnection;
+    bool suppressDisconnectReturn;
+    bool returningAfterDisconnect;
+
+    const int DisconnectTimeoutMs = 5000;
+    const int HeartbeatTimeoutMs = 500;
+    const int MaxConnectAttempts = 8;
+
+    void OnEnable()
+    {
+        EnsureSingleNetworkManager();
+        TryRegisterDisconnectCallback();
+    }
+
+    void OnDisable()
+    {
+        UnregisterDisconnectCallback();
+    }
 
     async void Start()
     {
+        EnsureSingleNetworkManager();
+        TryRegisterDisconnectCallback();
+
         SetBusy(true, "Connecting services...");
 
         await EnsureUnityServicesReady();
@@ -30,6 +53,12 @@ public class RelayManager : MonoBehaviour
         SetBusy(false);
 
         SetStatus("Unity Services ready");
+    }
+
+    void Update()
+    {
+        TryRegisterDisconnectCallback();
+        MonitorLocalDisconnect();
     }
 
     public void CreateRelay()
@@ -47,6 +76,13 @@ public class RelayManager : MonoBehaviour
             SetStatus("Creating relay...");
             await EnsureUnityServicesReady();
 
+            NetworkManager networkManager = GetActiveNetworkManager();
+            if (networkManager == null)
+            {
+                SetStatus("NetworkManager missing.");
+                return;
+            }
+
             var allocation = await RelayService.Instance.CreateAllocationAsync(3);
 
             string joinCode =
@@ -54,13 +90,14 @@ public class RelayManager : MonoBehaviour
             currentJoinCode = joinCode;
 
             var transport =
-                NetworkManager.Singleton.GetComponent<UnityTransport>();
+                networkManager.GetComponent<UnityTransport>();
 
+            ConfigureTransportTimeouts(transport);
             transport.SetRelayServerData(
                 AllocationUtils.ToRelayServerData(allocation, "dtls")
             );
 
-            bool result = NetworkManager.Singleton.StartHost();
+            bool result = networkManager.StartHost();
 
 
             if (joinCodeText != null)
@@ -103,19 +140,27 @@ public class RelayManager : MonoBehaviour
             SetStatus("Joining relay...");
             await EnsureUnityServicesReady();
 
+            NetworkManager networkManager = GetActiveNetworkManager();
+            if (networkManager == null)
+            {
+                SetStatus("NetworkManager missing.");
+                return;
+            }
+
             var joinAllocation =
                 await RelayService.Instance.JoinAllocationAsync(code);
 
             lastJoinCode = code;
 
             var transport =
-                NetworkManager.Singleton.GetComponent<UnityTransport>();
+                networkManager.GetComponent<UnityTransport>();
 
+            ConfigureTransportTimeouts(transport);
             transport.SetRelayServerData(
                 AllocationUtils.ToRelayServerData(joinAllocation, "dtls")
             );
 
-            bool result = NetworkManager.Singleton.StartClient();
+            bool result = networkManager.StartClient();
             if (result)
             {
                 SetStatus("Waiting for host to load lobby...");
@@ -188,7 +233,18 @@ public class RelayManager : MonoBehaviour
         SetStatus("Leaving room...");
 
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            if (LobbyManager.Instance != null &&
+                NetworkManager.Singleton.IsClient &&
+                !NetworkManager.Singleton.IsServer)
+            {
+                LobbyManager.Instance.RequestLeaveLobby();
+                await Task.Delay(200);
+            }
+
+            suppressDisconnectReturn = true;
             NetworkManager.Singleton.Shutdown();
+        }
 
         await Task.Delay(250);
 
@@ -197,7 +253,11 @@ public class RelayManager : MonoBehaviour
 
         currentJoinCode = "";
 
+        if (LobbyManager.Instance != null)
+            LobbyManager.Instance.ResetLocalLobbyViewAfterLeave();
+
         SetStatus("Left room. Create or join another room.");
+        suppressDisconnectReturn = false;
         SetBusy(false);
     }
 
@@ -216,6 +276,46 @@ public class RelayManager : MonoBehaviour
 
         if (!AuthenticationService.Instance.IsSignedIn)
             await AuthenticationService.Instance.SignInAnonymouslyAsync();
+    }
+
+    void ConfigureTransportTimeouts(UnityTransport transport)
+    {
+        if (transport == null)
+            return;
+
+        transport.DisconnectTimeoutMS = DisconnectTimeoutMs;
+        transport.HeartbeatTimeoutMS = HeartbeatTimeoutMs;
+        transport.MaxConnectAttempts = MaxConnectAttempts;
+    }
+
+    NetworkManager GetActiveNetworkManager()
+    {
+        EnsureSingleNetworkManager();
+        return NetworkManager.Singleton;
+    }
+
+    void EnsureSingleNetworkManager()
+    {
+        NetworkManager[] managers =
+            FindObjectsByType<NetworkManager>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None
+            );
+
+        if (managers == null || managers.Length <= 1)
+            return;
+
+        NetworkManager keep =
+            NetworkManager.Singleton != null ? NetworkManager.Singleton : managers[0];
+
+        foreach (NetworkManager manager in managers)
+        {
+            if (manager == null || manager == keep)
+                continue;
+
+            Debug.LogWarning("Destroyed duplicate NetworkManager: " + manager.name);
+            Destroy(manager.gameObject);
+        }
     }
 
     void SetBusy(bool busy, string message = "")
@@ -239,5 +339,78 @@ public class RelayManager : MonoBehaviour
             statusText.text = message;
     }
 
-    
+    void TryRegisterDisconnectCallback()
+    {
+        if (disconnectCallbackRegistered || NetworkManager.Singleton == null)
+            return;
+
+        NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+        disconnectCallbackRegistered = true;
+    }
+
+    void UnregisterDisconnectCallback()
+    {
+        if (!disconnectCallbackRegistered || NetworkManager.Singleton == null)
+            return;
+
+        NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+        disconnectCallbackRegistered = false;
+    }
+
+    void OnClientDisconnected(ulong clientId)
+    {
+        if (suppressDisconnectReturn ||
+            returningAfterDisconnect ||
+            NetworkManager.Singleton == null ||
+            NetworkManager.Singleton.IsServer ||
+            clientId != NetworkManager.Singleton.LocalClientId)
+            return;
+
+        StartCoroutine(ReturnToLobbyAfterDisconnect("Disconnected from host. Returning to lobby..."));
+    }
+
+    void MonitorLocalDisconnect()
+    {
+        if (suppressDisconnectReturn ||
+            returningAfterDisconnect ||
+            NetworkManager.Singleton == null ||
+            NetworkManager.Singleton.IsServer)
+            return;
+
+        if (NetworkManager.Singleton.IsClient && NetworkManager.Singleton.IsConnectedClient)
+        {
+            observedClientConnection = true;
+            return;
+        }
+
+        if (observedClientConnection)
+            StartCoroutine(ReturnToLobbyAfterDisconnect("Disconnected from host. Returning to lobby..."));
+    }
+
+    IEnumerator ReturnToLobbyAfterDisconnect(string message)
+    {
+        returningAfterDisconnect = true;
+        SetBusy(true, message);
+        SetStatus(message);
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            NetworkManager.Singleton.Shutdown();
+
+        yield return null;
+
+        observedClientConnection = false;
+
+        if (SceneManager.GetActiveScene().name != lobbySceneName)
+        {
+            SceneManager.LoadScene(lobbySceneName, LoadSceneMode.Single);
+        }
+        else
+        {
+            if (LobbyManager.Instance != null)
+                LobbyManager.Instance.ResetLocalLobbyViewAfterLeave();
+
+            SetStatus("Host closed the room. Create or join another room.");
+            SetBusy(false);
+        }
+    }
 }

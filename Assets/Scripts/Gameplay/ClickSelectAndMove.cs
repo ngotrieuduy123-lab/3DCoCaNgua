@@ -1,6 +1,11 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+using TMPro;
 using System.Collections;
+using System.Collections.Generic;
+using System;
 
 public class ClickSelectAndMove : MonoBehaviour
 {
@@ -34,20 +39,153 @@ public class ClickSelectAndMove : MonoBehaviour
 
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
+            if (IsPointerOverBlockingUi())
+                return;
+
             Ray ray = mainCamera.ScreenPointToRay(
                 Mouse.current.position.ReadValue()
             );
 
-            if (Physics.Raycast(ray, out RaycastHit hit))
-            {
-                PieceController piece = hit.collider.GetComponent<PieceController>();
+            PieceController piece = FindClickedPiece(ray);
 
-                if (piece != null)
-                {
-                    TryMovePiece(piece);
-                }
+            if (piece != null)
+            {
+                TryMovePiece(piece);
+            }
+            else if (isNetworkMode)
+            {
+                TryDeployStablePieceWhenClickMisses();
             }
         }
+    }
+
+    PieceController FindClickedPiece(Ray ray)
+    {
+        RaycastHit[] hits = Physics.RaycastAll(ray, 1000f, ~0, QueryTriggerInteraction.Ignore);
+        Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        foreach (RaycastHit hit in hits)
+        {
+            if (hit.collider == null)
+                continue;
+
+            PieceController piece = hit.collider.GetComponentInParent<PieceController>();
+
+            if (piece != null)
+                return piece;
+        }
+
+        return null;
+    }
+
+    bool IsPointerOverBlockingUi()
+    {
+        if (EventSystem.current == null || Mouse.current == null)
+            return false;
+
+        PointerEventData pointerData = new PointerEventData(EventSystem.current)
+        {
+            position = Mouse.current.position.ReadValue()
+        };
+
+        List<RaycastResult> results = new List<RaycastResult>();
+        EventSystem.current.RaycastAll(pointerData, results);
+
+        foreach (RaycastResult result in results)
+        {
+            GameObject target = result.gameObject;
+
+            if (target == null)
+                continue;
+
+            if (target.GetComponentInParent<Selectable>() != null ||
+                target.GetComponentInParent<TMP_InputField>() != null)
+                return true;
+        }
+
+        return false;
+    }
+
+    void TryDeployStablePieceWhenClickMisses()
+    {
+        if (networkDiceManager == null ||
+            networkPieceMoveManager == null ||
+            boardManager == null ||
+            NetworkTurnManager.Instance == null)
+            return;
+
+        if (networkDiceManager.totalValue.Value <= 0 ||
+            !networkDiceManager.CanSpawnPiece())
+            return;
+
+        int localPlayer = NetworkPlayerIndexUtility.GetLocalPlayerIndex();
+
+        if (localPlayer != NetworkTurnManager.Instance.currentPlayerIndex.Value)
+            return;
+
+        if (NetworkRoomControlManager.Instance != null &&
+            !NetworkRoomControlManager.Instance.IsPlayerActive(localPlayer))
+            return;
+
+        if (HasValidNonStableNetworkMove(localPlayer))
+        {
+            if (gameplayUI != null)
+                gameplayUI.SetMessage("Choose a highlighted piece");
+            return;
+        }
+
+        PieceController piece = FindFirstSpawnableStablePiece(localPlayer);
+
+        if (piece == null)
+            return;
+
+        if (gameplayUI != null)
+            gameplayUI.SetMessage("Deploying piece...");
+
+        networkPieceMoveManager.RequestMovePiece(piece.pieceId);
+    }
+
+    bool HasValidNonStableNetworkMove(int playerIndex)
+    {
+        foreach (PieceController piece in boardManager.allPieces)
+        {
+            if (piece == null ||
+                piece.playerIndex != playerIndex ||
+                piece.isFinished ||
+                piece.isMoving ||
+                piece.isInStable)
+                continue;
+
+            if (piece.isInHomePath)
+            {
+                if (networkDiceManager.CanClimbHome() && piece.CanClimbHome())
+                    return true;
+            }
+            else if (piece.CanMove(networkDiceManager.totalValue.Value))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    PieceController FindFirstSpawnableStablePiece(int playerIndex)
+    {
+        foreach (PieceController piece in boardManager.allPieces)
+        {
+            if (piece == null ||
+                piece.playerIndex != playerIndex ||
+                piece.isFinished ||
+                piece.isMoving ||
+                !piece.isInStable)
+                continue;
+
+            if (piece.CanSpawn())
+                return piece;
+        }
+
+        return null;
     }
 
     void TryMovePiece(PieceController piece)

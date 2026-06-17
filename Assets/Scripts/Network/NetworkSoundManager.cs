@@ -13,24 +13,28 @@ public class NetworkSoundManager : NetworkBehaviour
     [Rpc(SendTo.ClientsAndHost)]
     public void PlayMoveSoundRpc()
     {
-        SoundManager.Instance.PlayMove();
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayMove();
     }
 
     [Rpc(SendTo.ClientsAndHost)]
     public void PlayKickSoundRpc()
     {
-        SoundManager.Instance.PlayKick();
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayKick();
     }
 
     [Rpc(SendTo.ClientsAndHost)]
     public void PlayDiceSoundRpc()
     {
-        SoundManager.Instance.PlayDice();
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayDice();
     }
 
     [Rpc(SendTo.ClientsAndHost)]
     public void PlayFinishSoundRpc()
     {
-        SoundManager.Instance.PlayFinish();
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayFinish();
     }
 }

@@ -19,6 +19,9 @@ public class SoundManager : MonoBehaviour
 
     public void PlayDice()
     {
+        if (audioSource == null || diceSound == null)
+            return;
+
         audioSource.PlayOneShot(diceSound);
     }
 
@@ -29,16 +32,25 @@ public class SoundManager : MonoBehaviour
 
         lastMoveSoundTime = Time.time;
 
+        if (audioSource == null || moveSound == null)
+            return;
+
         audioSource.PlayOneShot(moveSound);
     }
 
     public void PlayKick()
     {
+        if (audioSource == null || kickSound == null)
+            return;
+
         audioSource.PlayOneShot(kickSound);
     }
 
     public void PlayFinish()
     {
+        if (audioSource == null || finishSound == null)
+            return;
+
         audioSource.PlayOneShot(finishSound);
     }
 }

@@ -41,6 +41,7 @@ public class NetworkTurnManager : NetworkBehaviour
     void UpdateTurnUI(int playerIndex)
     {
         gameplayUI.SetTurn((PlayerColor)playerIndex);
+        gameplayUI.SetTurnDisplayName(playerIndex, GetTurnDisplayName(playerIndex));
 
         int localPlayerIndex = -1;
 
@@ -48,6 +49,9 @@ public class NetworkTurnManager : NetworkBehaviour
         {
             localPlayerIndex = NetworkPlayerIndexUtility.GetLocalPlayerIndex();
         }
+
+        if (gameplayUI != null)
+            gameplayUI.SetLocalPlayer(localPlayerIndex);
 
         bool playerActive =
             NetworkRoomControlManager.Instance == null ||
@@ -63,6 +67,19 @@ public class NetworkTurnManager : NetworkBehaviour
         }
 
         Debug.Log("Network turn: " + (PlayerColor)playerIndex);
+
+        if (NetworkDiceManager.Instance != null)
+            NetworkDiceManager.Instance.RefreshHighlights();
+    }
+
+    string GetTurnDisplayName(int playerIndex)
+    {
+        string displayName = PlayerPrefs.GetString("TurnDisplayName_" + playerIndex, "");
+
+        if (string.IsNullOrWhiteSpace(displayName))
+            displayName = ((PlayerColor)playerIndex).ToString();
+
+        return displayName;
     }
 
     public void NextTurn()

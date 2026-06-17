@@ -1,4 +1,5 @@
 using TMPro;
+using System.Collections;
 using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
@@ -50,6 +51,8 @@ public class LobbyManager : NetworkBehaviour
         }
 
         RefreshPlayerList();
+
+        StartCoroutine(SubmitDisplayNameRoutine());
     }
 
     public override void OnNetworkDespawn()
@@ -78,16 +81,7 @@ public class LobbyManager : NetworkBehaviour
     {
         if (!IsServer) return;
 
-        int index = GetPlayerIndexByClientId(clientId);
-
-        if (index >= 0)
-        {
-            playerClientIds.RemoveAt(index);
-            playerNames.RemoveAt(index);
-            readyStates.RemoveAt(index);
-        }
-
-        RefreshPlayerList();
+        RemovePlayerFromLobby(clientId);
     }
 
     void OnPlayerClientListChanged(NetworkListEvent<ulong> change)
@@ -116,7 +110,12 @@ public class LobbyManager : NetworkBehaviour
         for (int i = 0; i < count; i++)
         {
             string ready = readyStates[i] ? "[READY]" : "[NOT READY]";
-            text += "Player " + i + " " + ready + "\n";
+            string displayName = playerNames[i].ToString();
+
+            if (string.IsNullOrWhiteSpace(displayName))
+                displayName = "Player " + i;
+
+            text += displayName + " " + ready + "\n";
         }
 
         playerListText.text = text;
@@ -131,6 +130,29 @@ public class LobbyManager : NetworkBehaviour
         ToggleReadyServerRpc(NetworkManager.Singleton.LocalClientId);
     }
 
+    public void RequestLeaveLobby()
+    {
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+            return;
+
+        if (IsServer)
+        {
+            RemovePlayerFromLobby(NetworkManager.Singleton.LocalClientId);
+            return;
+        }
+
+        RequestLeaveLobbyServerRpc();
+    }
+
+    public void ResetLocalLobbyViewAfterLeave()
+    {
+        if (playerListText != null)
+            playerListText.text = "";
+
+        if (roomCodeText != null)
+            roomCodeText.text = "Code: -";
+    }
+
     [Rpc(SendTo.Server)]
     void ToggleReadyServerRpc(ulong clientId)
     {
@@ -139,6 +161,50 @@ public class LobbyManager : NetworkBehaviour
         if (index >= 0 && index < readyStates.Count)
         {
             readyStates[index] = !readyStates[index];
+        }
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    void RequestLeaveLobbyServerRpc(RpcParams rpcParams = default)
+    {
+        RemovePlayerFromLobby(rpcParams.Receive.SenderClientId);
+    }
+
+    void SubmitDisplayName()
+    {
+        if (NetworkManager.Singleton == null)
+            return;
+
+        string displayName = GetLocalDisplayName();
+
+        if (IsServer)
+        {
+            SetPlayerDisplayName(NetworkManager.Singleton.LocalClientId, displayName);
+            return;
+        }
+
+        SubmitDisplayNameServerRpc(displayName);
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    void SubmitDisplayNameServerRpc(string displayName, RpcParams rpcParams = default)
+    {
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        if (GetPlayerIndexByClientId(senderClientId) < 0)
+            AddPlayer(senderClientId);
+
+        SetPlayerDisplayName(senderClientId, displayName);
+    }
+
+    IEnumerator SubmitDisplayNameRoutine()
+    {
+        yield return null;
+
+        for (int i = 0; i < 5; i++)
+        {
+            SubmitDisplayName();
+            yield return new WaitForSeconds(0.25f);
         }
     }
 
@@ -188,6 +254,13 @@ public class LobbyManager : NetworkBehaviour
 
         CachePlayerMappingsForGame();
         PlayerPrefs.SetInt("PlayerCount", count);
+        CacheTurnDisplayNamesClientRpc(
+            count,
+            GetPlayerDisplayNameForCache(0),
+            GetPlayerDisplayNameForCache(1),
+            GetPlayerDisplayNameForCache(2),
+            GetPlayerDisplayNameForCache(3)
+        );
 
         if (DatabaseManager.Instance != null)
         {
@@ -221,6 +294,35 @@ public class LobbyManager : NetworkBehaviour
             loadingOverlay.Show(message);
     }
 
+    [Rpc(SendTo.ClientsAndHost)]
+    void CacheTurnDisplayNamesClientRpc(
+        int count,
+        string player0Name,
+        string player1Name,
+        string player2Name,
+        string player3Name)
+    {
+        string[] names =
+        {
+            player0Name,
+            player1Name,
+            player2Name,
+            player3Name
+        };
+
+        PlayerPrefs.SetInt("PlayerCount", count);
+
+        for (int i = 0; i < names.Length; i++)
+        {
+            PlayerPrefs.SetString(
+                "TurnDisplayName_" + i,
+                SanitizeDisplayName(names[i], i)
+            );
+        }
+
+        PlayerPrefs.Save();
+    }
+
     void AddPlayer(ulong clientId)
     {
         if (GetPlayerIndexByClientId(clientId) >= 0)
@@ -239,6 +341,24 @@ public class LobbyManager : NetworkBehaviour
         readyStates.Add(false);
 
         CachePlayerMappingsForGame();
+    }
+
+    void RemovePlayerFromLobby(ulong clientId)
+    {
+        if (!IsServer)
+            return;
+
+        int index = GetPlayerIndexByClientId(clientId);
+
+        if (index < 0)
+            return;
+
+        playerClientIds.RemoveAt(index);
+        playerNames.RemoveAt(index);
+        readyStates.RemoveAt(index);
+
+        CachePlayerMappingsForGame();
+        RefreshPlayerList();
     }
 
     int GetPlayerCount()
@@ -277,5 +397,61 @@ public class LobbyManager : NetworkBehaviour
             CacheLocalPlayerIndex();
 
         PlayerPrefs.Save();
+    }
+
+    string GetPlayerDisplayNameForCache(int index)
+    {
+        if (index >= 0 && index < playerNames.Count)
+            return playerNames[index].ToString();
+
+        return "Player " + index;
+    }
+
+    void SetPlayerDisplayName(ulong clientId, string displayName)
+    {
+        if (!IsServer)
+            return;
+
+        int index = GetPlayerIndexByClientId(clientId);
+
+        if (index < 0)
+        {
+            AddPlayer(clientId);
+            index = GetPlayerIndexByClientId(clientId);
+        }
+
+        if (index < 0 || index >= playerNames.Count)
+            return;
+
+        playerNames[index] = SanitizeDisplayName(displayName, index);
+
+        RefreshPlayerList();
+    }
+
+    string GetLocalDisplayName()
+    {
+        if (DatabaseManager.Instance != null &&
+            DatabaseManager.Instance.CurrentPlayer != null &&
+            !string.IsNullOrWhiteSpace(DatabaseManager.Instance.CurrentPlayer.DisplayName))
+            return DatabaseManager.Instance.CurrentPlayer.DisplayName;
+
+        string displayName = PlayerPrefs.GetString("DisplayName", "");
+
+        if (!string.IsNullOrWhiteSpace(displayName))
+            return displayName;
+
+        return PlayerPrefs.GetString("Username", "");
+    }
+
+    string SanitizeDisplayName(string displayName, int index)
+    {
+        displayName = string.IsNullOrWhiteSpace(displayName)
+            ? "Player " + index
+            : displayName.Trim();
+
+        if (displayName.Length > 24)
+            displayName = displayName.Substring(0, 24);
+
+        return displayName;
     }
 }

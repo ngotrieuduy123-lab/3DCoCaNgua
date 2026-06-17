@@ -17,7 +17,9 @@ public class TurnManager : MonoBehaviour
 
         playerFinished = new bool[playerCount];
 
+        gameplayUI.SetLocalPlayer(currentPlayerIndex);
         gameplayUI.SetTurn((PlayerColor)currentPlayerIndex);
+        gameplayUI.SetTurnDisplayName(currentPlayerIndex, GetTurnDisplayName(currentPlayerIndex));
 
         Debug.Log("Player " + currentPlayerIndex + " turn");
     }
@@ -38,7 +40,9 @@ public class TurnManager : MonoBehaviour
         usedExtraTurn = false;
 
         Debug.Log("Player " + currentPlayerIndex + " turn");
+        gameplayUI.SetLocalPlayer(currentPlayerIndex);
         gameplayUI.SetTurn((PlayerColor)currentPlayerIndex);
+        gameplayUI.SetTurnDisplayName(currentPlayerIndex, GetTurnDisplayName(currentPlayerIndex));
         gameplayUI.ClearDice();
         gameplayUI.SetMessage("");
     }
@@ -60,7 +64,9 @@ public class TurnManager : MonoBehaviour
 
         gameplayUI.SetMessage("Extra turn");
         gameplayUI.ClearDice();
+        gameplayUI.SetLocalPlayer(currentPlayerIndex);
         gameplayUI.SetTurn((PlayerColor)currentPlayerIndex);
+        gameplayUI.SetTurnDisplayName(currentPlayerIndex, GetTurnDisplayName(currentPlayerIndex));
     }
 
     public void SetPlayerFinished(int playerIndex)
@@ -99,6 +105,16 @@ public class TurnManager : MonoBehaviour
     string GetPlayerName(PlayerColor color)
     {
         return color.ToString();
+    }
+
+    string GetTurnDisplayName(int playerIndex)
+    {
+        string displayName = PlayerPrefs.GetString("TurnDisplayName_" + playerIndex, "");
+
+        if (string.IsNullOrWhiteSpace(displayName))
+            displayName = ((PlayerColor)playerIndex).ToString();
+
+        return displayName;
     }
 
     string GetRankingText()

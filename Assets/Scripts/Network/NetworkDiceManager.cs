@@ -29,6 +29,15 @@ public class NetworkDiceManager : NetworkBehaviour
         UpdateDiceUI();
     }
 
+    public override void OnNetworkDespawn()
+    {
+        dice1Value.OnValueChanged -= OnDiceChanged;
+        dice2Value.OnValueChanged -= OnDiceChanged;
+        totalValue.OnValueChanged -= OnDiceChanged;
+
+        ClearHighlights();
+    }
+
     public void RequestRollDice()
     {
         if (GameManager.Instance.IsState(GameState.GameOver))
@@ -44,7 +53,7 @@ public class NetworkDiceManager : NetworkBehaviour
             if (!CanSenderRoll(hostId))
             {
                 Debug.Log("cannot roll now");
-                gameplayUI.SetMessage("Not your turn or already rolled");
+                gameplayUI.SetMessage(GetRollRejectMessage(hostId));
                 return;
             }
 
@@ -64,7 +73,7 @@ public class NetworkDiceManager : NetworkBehaviour
         if (!CanSenderRoll(senderClientId))
         {
             Debug.Log("client cannot roll now");
-            ShowMessageClientRpc("Not your turn or already rolled");
+            ShowMessageToClientRpc(GetRollRejectMessage(senderClientId), senderClientId);
             return;
         }
 
@@ -80,6 +89,11 @@ public class NetworkDiceManager : NetworkBehaviour
         {
             NetworkSoundManager.Instance.PlayDiceSoundRpc();
         }
+        else
+        {
+            PlayDiceSoundClientRpc();
+        }
+
         dice1Value.Value = d1;
         dice2Value.Value = d2;
         totalValue.Value = d1 + d2;
@@ -92,6 +106,7 @@ public class NetworkDiceManager : NetworkBehaviour
     void OnDiceChanged(int oldValue, int newValue)
     {
         UpdateDiceUI();
+        RefreshHighlights();
     }
 
     void UpdateDiceUI()
@@ -101,29 +116,29 @@ public class NetworkDiceManager : NetworkBehaviour
 
     public bool IsDouble()
     {
-        return dice1Value.Value == dice2Value.Value;
+        return DiceRuleUtility.IsDouble(dice1Value.Value, dice2Value.Value);
     }
 
     public bool IsOneSix()
     {
-        return (dice1Value.Value == 1 && dice2Value.Value == 6) ||
-               (dice1Value.Value == 6 && dice2Value.Value == 1);
+        return DiceRuleUtility.IsOneSix(dice1Value.Value, dice2Value.Value);
     }
 
     public bool CanSpawnPiece()
     {
-        return IsDouble() || IsOneSix();
+        return DiceRuleUtility.CanEnterBoardOrClimb(dice1Value.Value, dice2Value.Value);
     }
 
     public bool CanClimbHome()
     {
-        return IsDouble() || IsOneSix();
+        return DiceRuleUtility.CanEnterBoardOrClimb(dice1Value.Value, dice2Value.Value);
     }
     public void ResetNetworkDice()
     {
         dice1Value.Value = 0;
         dice2Value.Value = 0;
         totalValue.Value = 0;
+        ClearHighlights();
     }
 
     void CheckAutoSkipTurnNetwork()
@@ -174,6 +189,7 @@ public class NetworkDiceManager : NetworkBehaviour
             Debug.Log("network no valid move, skip turn");
 
             ShowMessageClientRpc("No valid move. Skip turn...");
+            ClearHighlights();
 
             StartCoroutine(SkipTurnAfterDelay());
         }
@@ -202,10 +218,45 @@ public class NetworkDiceManager : NetworkBehaviour
         return true;
     }
 
+    string GetRollRejectMessage(ulong senderClientId)
+    {
+        int currentPlayer = NetworkTurnManager.Instance.currentPlayerIndex.Value;
+        int senderPlayerIndex = NetworkPlayerIndexUtility.GetPlayerIndex(senderClientId);
+
+        if (NetworkRoomControlManager.Instance != null &&
+            !NetworkRoomControlManager.Instance.IsPlayerActive(senderPlayerIndex))
+            return "You are no longer in this room.";
+
+        if (senderPlayerIndex != currentPlayer)
+            return "Not your turn";
+
+        if (totalValue.Value > 0)
+            return "Choose a highlighted piece";
+
+        return "Cannot roll now";
+    }
+
     [Rpc(SendTo.ClientsAndHost)]
     void ShowMessageClientRpc(string message)
     {
         gameplayUI.SetMessage(message);
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    void ShowMessageToClientRpc(string message, ulong targetClientId)
+    {
+        if (NetworkManager.Singleton == null ||
+            NetworkManager.Singleton.LocalClientId != targetClientId)
+            return;
+
+        gameplayUI.SetMessage(message);
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    void PlayDiceSoundClientRpc()
+    {
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayDice();
     }
 
     [Rpc(SendTo.ClientsAndHost)]
@@ -226,6 +277,70 @@ public class NetworkDiceManager : NetworkBehaviour
 
         gameplayUI.SetDice(d1, d2, d1 + d2);
     }
+
+    public void RefreshHighlights()
+    {
+        ClearHighlights();
+
+        if (boardManager == null ||
+            NetworkTurnManager.Instance == null ||
+            totalValue.Value <= 0)
+            return;
+
+        int currentPlayer = NetworkTurnManager.Instance.currentPlayerIndex.Value;
+        int localPlayer = NetworkPlayerIndexUtility.GetLocalPlayerIndex();
+
+        if (localPlayer != currentPlayer)
+            return;
+
+        if (NetworkRoomControlManager.Instance != null &&
+            !NetworkRoomControlManager.Instance.IsPlayerActive(localPlayer))
+            return;
+
+        foreach (PieceController piece in boardManager.allPieces)
+        {
+            if (piece == null ||
+                piece.playerIndex != currentPlayer ||
+                piece.isFinished)
+                continue;
+
+            bool canUse = false;
+
+            if (piece.isInStable)
+                canUse = CanSpawnPiece() && piece.CanSpawn();
+            else if (piece.isInHomePath)
+                canUse = CanClimbHome() && piece.CanClimbHome();
+            else
+                canUse = piece.CanMove(totalValue.Value);
+
+            piece.SetHighlight(canUse);
+
+            if (canUse)
+            {
+                MovePathHighlighter.Instance.ShowMovePreview(
+                    piece,
+                    totalValue.Value,
+                    CanSpawnPiece(),
+                    CanClimbHome()
+                );
+            }
+        }
+    }
+
+    public void ClearHighlights()
+    {
+        MovePathHighlighter.TryClear();
+
+        if (boardManager == null)
+            return;
+
+        foreach (PieceController piece in boardManager.allPieces)
+        {
+            if (piece != null)
+                piece.SetHighlight(false);
+        }
+    }
+
     IEnumerator SkipTurnAfterDelay()
     {
         yield return new WaitForSeconds(1.5f);
