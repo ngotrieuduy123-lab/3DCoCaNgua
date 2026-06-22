@@ -267,10 +267,13 @@ public class NetworkDiceManager : NetworkBehaviour
 
     IEnumerator PlayDiceVisualRoutine(int d1, int d2)
     {
-        visualDice1.RollVisualOnly();
-        visualDice2.RollVisualOnly();
+        DiceRollPresentation presentation = DiceRollPresentation.EnsureCreated();
+        yield return presentation.PlayRoll(d1, d2);
 
-        yield return new WaitForSeconds(0.2f);
+        visualDice1.RollVisualOnly(d1);
+        visualDice2.RollVisualOnly(d2);
+
+        yield return new WaitUntil(() => !visualDice1.isRolling && !visualDice2.isRolling);
 
         visualDice1.SetVisualValue(d1);
         visualDice2.SetVisualValue(d2);

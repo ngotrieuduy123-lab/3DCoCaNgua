@@ -85,7 +85,10 @@ public class MaskedPasswordInput : MonoBehaviour, ISelectHandler, IDeselectHandl
             input.textComponent.color = new Color(0f, 0f, 0f, 0f);
 
         if (displayText != null)
+        {
             displayText.raycastTarget = false;
+            displayText.color = Color.white;
+        }
 
         EnsureCaret();
 
@@ -277,7 +280,7 @@ public class MaskedPasswordInput : MonoBehaviour, ISelectHandler, IDeselectHandl
         caretRect.sizeDelta = new Vector2(2f, -CaretHeightPadding);
 
         caretImage = caretObject.GetComponent<Image>();
-        caretImage.color = new Color(0.08f, 0.1f, 0.13f, 1f);
+        caretImage.color = Color.white;
         caretImage.raycastTarget = false;
 
         SetCaretVisible(false);

@@ -1,6 +1,7 @@
 using MongoDB.Bson;
 using MongoDB.Driver;
 using System;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,6 +9,9 @@ using UnityEngine;
 
 public class DatabaseManager : MonoBehaviour
 {
+    public const int StartingCoins = 1000;
+    public const int WinRewardCoins = 1000;
+
     public static DatabaseManager Instance;
 
     [Header("MongoDB")]
@@ -98,7 +102,10 @@ public class DatabaseManager : MonoBehaviour
                 PasswordSalt = salt,
                 PasswordHash = hash,
                 Password = null,
-                Coins = 1000,
+                Coins = StartingCoins,
+                OwnedSkinIds = new List<string> { SkinCatalog.DefaultSkinId },
+                EquippedSkinId = SkinCatalog.DefaultSkinId,
+                RewardedMatchIds = new List<string>(),
                 CreatedAtUtc = DateTime.UtcNow,
                 LastLoginUtc = DateTime.UtcNow
             };
@@ -235,6 +242,7 @@ public class DatabaseManager : MonoBehaviour
                 return Fail("Wrong username or password.");
 
             await MarkLoginAndMigrateLegacyPassword(player, password);
+            await EnsurePlayerEconomyDefaults(player);
 
             CurrentPlayer = player;
             SaveSession(player);
@@ -265,7 +273,134 @@ public class DatabaseManager : MonoBehaviour
         PlayerPrefs.DeleteKey("PlayerId");
         PlayerPrefs.DeleteKey("Username");
         PlayerPrefs.DeleteKey("DisplayName");
+        PlayerPrefs.DeleteKey("Coins");
+        PlayerPrefs.DeleteKey("EquippedSkinId");
         PlayerPrefs.Save();
+    }
+
+    public async Task<ShopResult> PurchaseSkin(string skinId)
+    {
+        if (CurrentPlayer == null)
+            return ShopFail("Please log in first.");
+
+        skinId = string.IsNullOrWhiteSpace(skinId) ? "" : skinId.Trim();
+
+        SkinCatalog catalog = SkinCatalog.Load();
+        SkinDefinition skin = catalog != null ? catalog.Get(skinId) : null;
+
+        if (skin == null || skin.price < 0)
+            return ShopFail("Invalid skin.");
+
+        int price = skin.price;
+
+        if (OwnsSkin(CurrentPlayer, skinId))
+            return ShopFail("You already own this skin.");
+
+        if (!EnsureCollectionReady(out string databaseMessage))
+            return ShopFail(databaseMessage);
+
+        try
+        {
+            FilterDefinition<PlayerData> filter = Builders<PlayerData>.Filter.And(
+                Builders<PlayerData>.Filter.Eq(p => p.Id, CurrentPlayer.Id),
+                Builders<PlayerData>.Filter.Gte(p => p.Coins, price),
+                Builders<PlayerData>.Filter.Ne("ownedSkinIds", skinId)
+            );
+
+            UpdateDefinition<PlayerData> update = Builders<PlayerData>.Update
+                .Inc(p => p.Coins, -price)
+                .AddToSet(p => p.OwnedSkinIds, skinId);
+
+            PlayerData updated = await playerCollection.FindOneAndUpdateAsync(
+                filter,
+                update,
+                new FindOneAndUpdateOptions<PlayerData> { ReturnDocument = ReturnDocument.After }
+            );
+
+            if (updated == null)
+                return ShopFail(CurrentPlayer.Coins < price ? "Not enough coins." : "Purchase could not be completed.");
+
+            CurrentPlayer = updated;
+            SaveSession(updated);
+            return ShopSuccess("Purchased successfully.");
+        }
+        catch (Exception e)
+        {
+            return ShopFail("Purchase failed: " + e.Message);
+        }
+    }
+
+    public async Task<ShopResult> EquipSkin(string skinId)
+    {
+        if (CurrentPlayer == null)
+            return ShopFail("Please log in first.");
+
+        skinId = string.IsNullOrWhiteSpace(skinId) ? SkinCatalog.DefaultSkinId : skinId.Trim();
+
+        if (!OwnsSkin(CurrentPlayer, skinId))
+            return ShopFail("Purchase this skin before equipping it.");
+
+        if (!EnsureCollectionReady(out string databaseMessage))
+            return ShopFail(databaseMessage);
+
+        try
+        {
+            await playerCollection.UpdateOneAsync(
+                p => p.Id == CurrentPlayer.Id,
+                Builders<PlayerData>.Update.Set(p => p.EquippedSkinId, skinId)
+            );
+
+            CurrentPlayer.EquippedSkinId = skinId;
+            SaveSession(CurrentPlayer);
+            return ShopSuccess("Skin equipped.");
+        }
+        catch (Exception e)
+        {
+            return ShopFail("Equip failed: " + e.Message);
+        }
+    }
+
+    public async Task<ShopResult> AwardWinCoins(string rewardId, int amount = WinRewardCoins)
+    {
+        if (CurrentPlayer == null || string.IsNullOrWhiteSpace(rewardId) || amount <= 0)
+            return ShopFail("Win reward is unavailable.");
+
+        if (!EnsureCollectionReady(out string databaseMessage))
+            return ShopFail(databaseMessage);
+
+        try
+        {
+            FilterDefinition<PlayerData> filter = Builders<PlayerData>.Filter.And(
+                Builders<PlayerData>.Filter.Eq(p => p.Id, CurrentPlayer.Id),
+                Builders<PlayerData>.Filter.Ne("rewardedMatchIds", rewardId)
+            );
+
+            UpdateDefinition<PlayerData> update = Builders<PlayerData>.Update
+                .Inc(p => p.Coins, amount)
+                .AddToSet(p => p.RewardedMatchIds, rewardId);
+
+            PlayerData updated = await playerCollection.FindOneAndUpdateAsync(
+                filter,
+                update,
+                new FindOneAndUpdateOptions<PlayerData> { ReturnDocument = ReturnDocument.After }
+            );
+
+            if (updated == null)
+                return ShopFail("This match reward was already claimed.");
+
+            CurrentPlayer = updated;
+            SaveSession(updated);
+            return ShopSuccess("Victory reward: +" + amount + " coins.");
+        }
+        catch (Exception e)
+        {
+            return ShopFail("Reward failed: " + e.Message);
+        }
+    }
+
+    public bool CurrentPlayerOwnsSkin(string skinId)
+    {
+        return CurrentPlayer != null && OwnsSkin(CurrentPlayer, skinId);
     }
 
     string ResolveConnectionString()
@@ -435,12 +570,67 @@ public class DatabaseManager : MonoBehaviour
         await playerCollection.UpdateOneAsync(p => p.Id == player.Id, update);
     }
 
+    async Task EnsurePlayerEconomyDefaults(PlayerData player)
+    {
+        bool hasDefaultSkin = OwnsSkin(player, SkinCatalog.DefaultSkinId);
+        bool hasEquippedSkin = !string.IsNullOrWhiteSpace(player.EquippedSkinId);
+
+        if (hasDefaultSkin && hasEquippedSkin)
+            return;
+
+        UpdateDefinition<PlayerData> update = Builders<PlayerData>.Update
+            .AddToSet(p => p.OwnedSkinIds, SkinCatalog.DefaultSkinId);
+
+        if (!hasEquippedSkin)
+            update = update.Set(p => p.EquippedSkinId, SkinCatalog.DefaultSkinId);
+
+        await playerCollection.UpdateOneAsync(p => p.Id == player.Id, update);
+
+        if (player.OwnedSkinIds == null)
+            player.OwnedSkinIds = new List<string>();
+
+        if (!player.OwnedSkinIds.Contains(SkinCatalog.DefaultSkinId))
+            player.OwnedSkinIds.Add(SkinCatalog.DefaultSkinId);
+
+        if (!hasEquippedSkin)
+            player.EquippedSkinId = SkinCatalog.DefaultSkinId;
+    }
+
+    static bool OwnsSkin(PlayerData player, string skinId)
+    {
+        if (skinId == SkinCatalog.DefaultSkinId)
+            return true;
+
+        return player.OwnedSkinIds != null && player.OwnedSkinIds.Contains(skinId);
+    }
+
     void SaveSession(PlayerData player)
     {
         PlayerPrefs.SetString("PlayerId", player.Id);
         PlayerPrefs.SetString("Username", player.Username);
         PlayerPrefs.SetString("DisplayName", player.DisplayName);
+        PlayerPrefs.SetInt("Coins", player.Coins);
+        PlayerPrefs.SetString(
+            "EquippedSkinId",
+            string.IsNullOrWhiteSpace(player.EquippedSkinId)
+                ? SkinCatalog.DefaultSkinId
+                : player.EquippedSkinId
+        );
         PlayerPrefs.Save();
+    }
+
+    ShopResult ShopSuccess(string message)
+    {
+        LastMessage = message;
+        Debug.Log(message);
+        return new ShopResult(true, message, CurrentPlayer != null ? CurrentPlayer.Coins : 0);
+    }
+
+    ShopResult ShopFail(string message)
+    {
+        LastMessage = message;
+        Debug.LogWarning(message);
+        return new ShopResult(false, message, CurrentPlayer != null ? CurrentPlayer.Coins : 0);
     }
 
     AuthResult Success(string message, PlayerData player)
@@ -468,6 +658,20 @@ public class DatabaseManager : MonoBehaviour
             Success = success;
             Message = message;
             Player = player;
+        }
+    }
+
+    public readonly struct ShopResult
+    {
+        public readonly bool Success;
+        public readonly string Message;
+        public readonly int Coins;
+
+        public ShopResult(bool success, string message, int coins)
+        {
+            Success = success;
+            Message = message;
+            Coins = coins;
         }
     }
 }

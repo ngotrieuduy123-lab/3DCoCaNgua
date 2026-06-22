@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3dd0d49fc0087a64ea8d688adaa92deb, type: 3}
+  m_Name: Odin
+  m_EditorClassIdentifier: Assembly-CSharp::SkinDefinition
+  id: odin_transformer
+  displayName: Odin
+  description: Transforms into an aircraft while moving.
+  price: 5000
+  includedByDefault: 0
+  previewImage: {fileID: 21300000, guid: 1192825e0b4b5ec4aa35d9d474c83b82, type: 3}
+  modelPrefab: {fileID: 8128668236925612103, guid: cc4b29f38d94e724ea0710b51ce5253d, type: 3}
+  movementStyle: 1
+  walkAnimation: {fileID: 0}
+  turnLeftAnimation: {fileID: 0}
+  turnRightAnimation: {fileID: 0}
+  turnPlaybackSpeed: 1.8
+  turnThresholdDegrees: 10
+  transformAnimation: {fileID: 7400000, guid: 2137356c54419a643bc8faef989b8b9f, type: 2}
+  transformPlaybackSpeed: 4
+  flightHeight: 0.008
+  flightTurnDuration: 0.18
+  flightLocalOffset: {x: 0, y: 0.00599, z: 0.00052}
+  movementSpeed: 0.28
+  localPosition: {x: 0, y: 0, z: 0.00015}
+  localEulerAngles: {x: 90, y: 0, z: 0}
+  localScale: {x: 0.0027, y: 0.0027, z: 0.0027}

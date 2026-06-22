@@ -29,12 +29,24 @@ public class DiceManager : MonoBehaviour
         isRolling = true;
         hasRolled = true;
 
-        dice1.Roll();
-        dice2.Roll();
+        int firstValue = Random.Range(1, 7);
+        int secondValue = Random.Range(1, 7);
+
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayDice();
+
+        DiceRollPresentation presentation = DiceRollPresentation.EnsureCreated();
+        yield return presentation.PlayRoll(firstValue, secondValue);
+
+        dice1.RollVisualOnly(firstValue);
+        dice2.RollVisualOnly(secondValue);
 
         yield return new WaitUntil(() => !dice1.isRolling && !dice2.isRolling);
 
-        totalValue = dice1.value + dice2.value;
+        dice1.SetVisualValue(firstValue);
+        dice2.SetVisualValue(secondValue);
+
+        totalValue = firstValue + secondValue;
 
         Debug.Log("total dice: " + totalValue);
         gameplayUI.SetDice(dice1.value, dice2.value, totalValue);

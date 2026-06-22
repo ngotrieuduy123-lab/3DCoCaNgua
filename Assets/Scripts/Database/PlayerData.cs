@@ -1,6 +1,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using System;
+using System.Collections.Generic;
 
 public class PlayerData
 {
@@ -28,6 +29,18 @@ public class PlayerData
 
     [BsonElement("coins")]
     public int Coins { get; set; }
+
+    [BsonElement("ownedSkinIds")]
+    [BsonIgnoreIfNull]
+    public List<string> OwnedSkinIds { get; set; }
+
+    [BsonElement("equippedSkinId")]
+    [BsonIgnoreIfNull]
+    public string EquippedSkinId { get; set; }
+
+    [BsonElement("rewardedMatchIds")]
+    [BsonIgnoreIfNull]
+    public List<string> RewardedMatchIds { get; set; }
 
     [BsonElement("createdAtUtc")]
     public DateTime CreatedAtUtc { get; set; }

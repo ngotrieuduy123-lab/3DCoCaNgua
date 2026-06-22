@@ -16,6 +16,7 @@ public class LobbyManager : NetworkBehaviour
 
     public NetworkList<ulong> playerClientIds;
     public NetworkList<FixedString32Bytes> playerNames;
+    public NetworkList<FixedString32Bytes> playerSkinIds;
     public NetworkList<bool> readyStates;
 
     bool isStartingGame;
@@ -26,6 +27,7 @@ public class LobbyManager : NetworkBehaviour
 
         playerClientIds = new NetworkList<ulong>();
         playerNames = new NetworkList<FixedString32Bytes>();
+        playerSkinIds = new NetworkList<FixedString32Bytes>();
         readyStates = new NetworkList<bool>();
     }
 
@@ -33,6 +35,7 @@ public class LobbyManager : NetworkBehaviour
     {
         playerClientIds.OnListChanged += OnPlayerClientListChanged;
         playerNames.OnListChanged += OnPlayerListChanged;
+        playerSkinIds.OnListChanged += OnPlayerSkinListChanged;
         readyStates.OnListChanged += OnReadyListChanged;
 
         if (IsServer)
@@ -42,6 +45,7 @@ public class LobbyManager : NetworkBehaviour
 
             playerClientIds.Clear();
             playerNames.Clear();
+            playerSkinIds.Clear();
             readyStates.Clear();
 
             foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
@@ -59,6 +63,7 @@ public class LobbyManager : NetworkBehaviour
     {
         playerClientIds.OnListChanged -= OnPlayerClientListChanged;
         playerNames.OnListChanged -= OnPlayerListChanged;
+        playerSkinIds.OnListChanged -= OnPlayerSkinListChanged;
         readyStates.OnListChanged -= OnReadyListChanged;
 
         if (IsServer && NetworkManager.Singleton != null)
@@ -90,6 +95,11 @@ public class LobbyManager : NetworkBehaviour
     }
 
     void OnPlayerListChanged(NetworkListEvent<FixedString32Bytes> change)
+    {
+        RefreshPlayerList();
+    }
+
+    void OnPlayerSkinListChanged(NetworkListEvent<FixedString32Bytes> change)
     {
         RefreshPlayerList();
     }
@@ -176,25 +186,26 @@ public class LobbyManager : NetworkBehaviour
             return;
 
         string displayName = GetLocalDisplayName();
+        string skinId = GetLocalSkinId();
 
         if (IsServer)
         {
-            SetPlayerDisplayName(NetworkManager.Singleton.LocalClientId, displayName);
+            SetPlayerProfile(NetworkManager.Singleton.LocalClientId, displayName, skinId);
             return;
         }
 
-        SubmitDisplayNameServerRpc(displayName);
+        SubmitPlayerProfileServerRpc(displayName, skinId);
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    void SubmitDisplayNameServerRpc(string displayName, RpcParams rpcParams = default)
+    void SubmitPlayerProfileServerRpc(string displayName, string skinId, RpcParams rpcParams = default)
     {
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
         if (GetPlayerIndexByClientId(senderClientId) < 0)
             AddPlayer(senderClientId);
 
-        SetPlayerDisplayName(senderClientId, displayName);
+        SetPlayerProfile(senderClientId, displayName, skinId);
     }
 
     IEnumerator SubmitDisplayNameRoutine()
@@ -259,7 +270,11 @@ public class LobbyManager : NetworkBehaviour
             GetPlayerDisplayNameForCache(0),
             GetPlayerDisplayNameForCache(1),
             GetPlayerDisplayNameForCache(2),
-            GetPlayerDisplayNameForCache(3)
+            GetPlayerDisplayNameForCache(3),
+            GetPlayerSkinIdForCache(0),
+            GetPlayerSkinIdForCache(1),
+            GetPlayerSkinIdForCache(2),
+            GetPlayerSkinIdForCache(3)
         );
 
         if (DatabaseManager.Instance != null)
@@ -300,7 +315,11 @@ public class LobbyManager : NetworkBehaviour
         string player0Name,
         string player1Name,
         string player2Name,
-        string player3Name)
+        string player3Name,
+        string player0Skin,
+        string player1Skin,
+        string player2Skin,
+        string player3Skin)
     {
         string[] names =
         {
@@ -310,6 +329,14 @@ public class LobbyManager : NetworkBehaviour
             player3Name
         };
 
+        string[] skinIds =
+        {
+            player0Skin,
+            player1Skin,
+            player2Skin,
+            player3Skin
+        };
+
         PlayerPrefs.SetInt("PlayerCount", count);
 
         for (int i = 0; i < names.Length; i++)
@@ -317,6 +344,10 @@ public class LobbyManager : NetworkBehaviour
             PlayerPrefs.SetString(
                 "TurnDisplayName_" + i,
                 SanitizeDisplayName(names[i], i)
+            );
+            PlayerPrefs.SetString(
+                "PlayerSkin_" + i,
+                SanitizeSkinId(skinIds[i])
             );
         }
 
@@ -338,6 +369,7 @@ public class LobbyManager : NetworkBehaviour
 
         playerClientIds.Add(clientId);
         playerNames.Add("Player " + nextIndex);
+        playerSkinIds.Add(SkinCatalog.DefaultSkinId);
         readyStates.Add(false);
 
         CachePlayerMappingsForGame();
@@ -355,6 +387,7 @@ public class LobbyManager : NetworkBehaviour
 
         playerClientIds.RemoveAt(index);
         playerNames.RemoveAt(index);
+        playerSkinIds.RemoveAt(index);
         readyStates.RemoveAt(index);
 
         CachePlayerMappingsForGame();
@@ -407,6 +440,14 @@ public class LobbyManager : NetworkBehaviour
         return "Player " + index;
     }
 
+    string GetPlayerSkinIdForCache(int index)
+    {
+        if (index >= 0 && index < playerSkinIds.Count)
+            return SanitizeSkinId(playerSkinIds[index].ToString());
+
+        return SkinCatalog.DefaultSkinId;
+    }
+
     void SetPlayerDisplayName(ulong clientId, string displayName)
     {
         if (!IsServer)
@@ -428,6 +469,27 @@ public class LobbyManager : NetworkBehaviour
         RefreshPlayerList();
     }
 
+    void SetPlayerProfile(ulong clientId, string displayName, string skinId)
+    {
+        if (!IsServer)
+            return;
+
+        int index = GetPlayerIndexByClientId(clientId);
+
+        if (index < 0)
+        {
+            AddPlayer(clientId);
+            index = GetPlayerIndexByClientId(clientId);
+        }
+
+        if (index < 0 || index >= playerNames.Count || index >= playerSkinIds.Count)
+            return;
+
+        playerNames[index] = SanitizeDisplayName(displayName, index);
+        playerSkinIds[index] = SanitizeSkinId(skinId);
+        RefreshPlayerList();
+    }
+
     string GetLocalDisplayName()
     {
         if (DatabaseManager.Instance != null &&
@@ -441,6 +503,20 @@ public class LobbyManager : NetworkBehaviour
             return displayName;
 
         return PlayerPrefs.GetString("Username", "");
+    }
+
+    string GetLocalSkinId()
+    {
+        if (DatabaseManager.Instance != null && DatabaseManager.Instance.CurrentPlayer != null)
+            return SanitizeSkinId(DatabaseManager.Instance.CurrentPlayer.EquippedSkinId);
+
+        return SanitizeSkinId(PlayerPrefs.GetString("EquippedSkinId", SkinCatalog.DefaultSkinId));
+    }
+
+    string SanitizeSkinId(string skinId)
+    {
+        skinId = string.IsNullOrWhiteSpace(skinId) ? SkinCatalog.DefaultSkinId : skinId.Trim();
+        return skinId.Length > 31 ? skinId.Substring(0, 31) : skinId;
     }
 
     string SanitizeDisplayName(string displayName, int index)

@@ -32,8 +32,42 @@ public class AuthUI : MonoBehaviour
     void Start()
     {
         ConfigurePasswordFields();
+        ApplyReadableInputColors();
         ShowLogin();
         SetStatus("Login or create an account.");
+    }
+
+    void ApplyReadableInputColors()
+    {
+        ApplyReadableInputColor(loginUsernameInput);
+        ApplyReadableInputColor(loginPasswordInput);
+        ApplyReadableInputColor(registerUsernameInput);
+        ApplyReadableInputColor(registerDisplayNameInput);
+        ApplyReadableInputColor(registerPasswordInput);
+        ApplyReadableInputColor(registerConfirmPasswordInput);
+    }
+
+    static void ApplyReadableInputColor(TMP_InputField input)
+    {
+        if (input == null)
+            return;
+
+        Color textColor = Color.white;
+        Color placeholderColor = new Color(0.68f, 0.72f, 0.78f, 1f);
+        MaskedPasswordInput masked = input.GetComponent<MaskedPasswordInput>();
+
+        if (masked != null)
+        {
+            if (masked.displayText != null)
+                masked.displayText.color = textColor;
+        }
+        else if (input.textComponent != null)
+        {
+            input.textComponent.color = textColor;
+        }
+
+        if (input.placeholder is TMP_Text placeholder)
+            placeholder.color = placeholderColor;
     }
 
     public void ShowLogin()

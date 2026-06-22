@@ -34,6 +34,7 @@ public class PieceController : NetworkBehaviour
     private Vector3 stablePosition;
     private Vector3 originalScale;
     private Coroutine highlightRoutine;
+    private Coroutine remoteSkinTransitionRoutine;
     private readonly List<GameObject> outlineObjects = new List<GameObject>();
     private Material outlineMaterial;
 
@@ -239,6 +240,19 @@ public class PieceController : NetworkBehaviour
             yield break;
         }
 
+        // Selection raises the whole piece for feedback. Snap it back to its
+        // board tile before slow skin movement so it does not appear to fall.
+        SetHighlight(false);
+        UnselectPiece();
+
+        PieceSkinApplicator skinApplicator = GetComponent<PieceSkinApplicator>();
+        float movementSpeed = skinApplicator != null ? skinApplicator.MovementSpeed : 5f;
+
+        BroadcastSkinMovementBegin();
+
+        if (skinApplicator != null)
+            yield return skinApplicator.PrepareMovement();
+
         Transform[] homePath = board.GetHomePath(playerIndex);
 
         for (int i = 0; i < step; i++)
@@ -267,6 +281,13 @@ public class PieceController : NetworkBehaviour
                 targetPos = homePath[homeIndex].position;
             else
                 targetPos = board.pathPoints[currentIndex].position;
+
+            if (skinApplicator != null)
+            {
+                BroadcastSkinDirection(targetPos - transform.position);
+                yield return skinApplicator.TurnTowards(targetPos - transform.position);
+                skinApplicator.SetWalking(true);
+            }
            
 
             while (Vector3.Distance(transform.position, targetPos) > 0.01f)
@@ -274,7 +295,7 @@ public class PieceController : NetworkBehaviour
                 transform.position = Vector3.MoveTowards(
                     transform.position,
                     targetPos,
-                    5f * Time.deltaTime
+                    movementSpeed * Time.deltaTime
                 );
 
                 yield return null;
@@ -290,6 +311,12 @@ public class PieceController : NetworkBehaviour
                 SoundManager.Instance.PlayMove();
             }
             yield return new WaitForSeconds(0.1f);
+        }
+        if (skinApplicator != null)
+        {
+            BroadcastSkinMovementEnd();
+            skinApplicator.SetWalking(false);
+            yield return skinApplicator.FinishMovement();
         }
         if (isInHomePath)
         {
@@ -314,6 +341,96 @@ public class PieceController : NetworkBehaviour
         SyncStateToClients();
     }
 
+    void BroadcastSkinMovementBegin()
+    {
+        if (CanBroadcastSkinVisuals())
+            BeginSkinMovementRpc();
+    }
+
+    void BroadcastSkinDirection(Vector3 direction)
+    {
+        if (CanBroadcastSkinVisuals())
+            UpdateSkinDirectionRpc(direction);
+    }
+
+    void BroadcastSkinMovementEnd()
+    {
+        if (CanBroadcastSkinVisuals())
+            EndSkinMovementRpc();
+    }
+
+    bool CanBroadcastSkinVisuals()
+    {
+        return NetworkManager.Singleton != null &&
+               NetworkManager.Singleton.IsListening &&
+               IsSpawned &&
+               IsServer;
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    void BeginSkinMovementRpc()
+    {
+        if (IsServer)
+            return;
+
+        SetHighlight(false);
+
+        if (remoteSkinTransitionRoutine != null)
+            StopCoroutine(remoteSkinTransitionRoutine);
+
+        remoteSkinTransitionRoutine = StartCoroutine(RemotePrepareSkinMovement());
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    void UpdateSkinDirectionRpc(Vector3 direction)
+    {
+        if (!IsServer)
+            StartCoroutine(RemoteUpdateSkinDirection(direction));
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    void EndSkinMovementRpc()
+    {
+        if (IsServer)
+            return;
+
+        if (remoteSkinTransitionRoutine != null)
+            StopCoroutine(remoteSkinTransitionRoutine);
+
+        remoteSkinTransitionRoutine = StartCoroutine(RemoteFinishSkinMovement());
+    }
+
+    IEnumerator RemotePrepareSkinMovement()
+    {
+        PieceSkinApplicator skinApplicator = GetComponent<PieceSkinApplicator>();
+        if (skinApplicator != null)
+            yield return skinApplicator.PrepareMovement();
+
+        remoteSkinTransitionRoutine = null;
+    }
+
+    IEnumerator RemoteUpdateSkinDirection(Vector3 direction)
+    {
+        PieceSkinApplicator skinApplicator = GetComponent<PieceSkinApplicator>();
+        if (skinApplicator == null)
+            yield break;
+
+        yield return skinApplicator.TurnTowards(direction);
+        skinApplicator.SetWalking(true);
+    }
+
+    IEnumerator RemoteFinishSkinMovement()
+    {
+        PieceSkinApplicator skinApplicator = GetComponent<PieceSkinApplicator>();
+        if (skinApplicator != null)
+        {
+            skinApplicator.SetWalking(false);
+            yield return skinApplicator.FinishMovement();
+        }
+
+        remoteSkinTransitionRoutine = null;
+    }
+
     public void ReturnToStable()
     {
         EnsureOriginalTransform();
@@ -326,6 +443,10 @@ public class PieceController : NetworkBehaviour
         isMoving = false;
         isSelected = false;
         isFinished = false;
+
+        PieceSkinApplicator skinApplicator = GetComponent<PieceSkinApplicator>();
+        if (skinApplicator != null)
+            skinApplicator.ResetMotion();
 
         transform.position = stablePosition;
         transform.localScale = originalScale;

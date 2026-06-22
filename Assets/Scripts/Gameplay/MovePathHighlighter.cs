@@ -37,8 +37,11 @@ public class MovePathHighlighter : MonoBehaviour
     Coroutine blinkRoutine;
 
     [Header("Marker Placement")]
+    [Tooltip("Move this child Transform in the Hierarchy to offset every generated highlight ring together.")]
+    [SerializeField] Transform markerContainer;
     [SerializeField] float markerYOffset = 0.075f;
-    [SerializeField] float markerRightOffset = 0.04f;
+    [SerializeField] float markerRightOffset = 0.012f;
+    [SerializeField] float markerForwardOffset = -0.024f;
 
     [Header("Ring Size")]
     [SerializeField] int ringSegments = 56;
@@ -80,6 +83,22 @@ public class MovePathHighlighter : MonoBehaviour
         }
 
         instance = this;
+        EnsureMarkerContainer();
+    }
+
+    Transform EnsureMarkerContainer()
+    {
+        if (markerContainer != null)
+            return markerContainer;
+
+        markerContainer = transform.Find("Generated Highlight Rings");
+        if (markerContainer != null)
+            return markerContainer;
+
+        GameObject container = new GameObject("Generated Highlight Rings");
+        markerContainer = container.transform;
+        markerContainer.SetParent(transform, false);
+        return markerContainer;
     }
 
     public void Clear()
@@ -206,11 +225,12 @@ public class MovePathHighlighter : MonoBehaviour
         GameObject markerObject = new GameObject(isTarget ? "MoveTargetRing" : "MoveStepRing");
         markerObject.name = isTarget ? "MoveTargetMarker" : "MoveStepMarker";
         SetIgnoreRaycastLayer(markerObject);
-        markerObject.transform.SetParent(transform, true);
-        markerObject.transform.position =
+        markerObject.transform.SetParent(EnsureMarkerContainer(), false);
+        markerObject.transform.localPosition =
             boardPosition +
             Vector3.up * markerYOffset +
-            Vector3.right * markerRightOffset;
+            Vector3.right * markerRightOffset +
+            Vector3.forward * markerForwardOffset;
         markerObject.transform.rotation = Quaternion.identity;
 
         LineRenderer ringRenderer = markerObject.AddComponent<LineRenderer>();

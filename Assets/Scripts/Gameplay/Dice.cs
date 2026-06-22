@@ -103,6 +103,46 @@ public class Dice : MonoBehaviour
             StartCoroutine(RollRoutine());
         }
     }
+
+    public void RollVisualOnly(int targetValue)
+    {
+        if (!isRolling)
+            StartCoroutine(RollPredeterminedRoutine(targetValue));
+    }
+
+    IEnumerator RollPredeterminedRoutine(int targetValue)
+    {
+        isRolling = true;
+        targetValue = Mathf.Clamp(targetValue, 1, 6);
+
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        transform.position = startPosition;
+
+        Quaternion targetRotation = Quaternion.Euler(valueEulerRotations[targetValue - 1]);
+        rb.position = startPosition;
+        rb.rotation = targetRotation;
+        transform.rotation = targetRotation;
+        value = targetValue;
+
+        yield return null;
+
+        Vector3 dir = throwDirection.normalized;
+        rb.AddForce(dir * throwForce, ForceMode.Impulse);
+
+        // Spinning around world-up keeps the rolled face on top throughout
+        // the physical fall instead of briefly showing a different result.
+        float spinDirection = Random.value < 0.5f ? -1f : 1f;
+        rb.AddTorque(Vector3.up * torqueForce * spinDirection, ForceMode.Impulse);
+
+        yield return new WaitForSeconds(1.5f);
+
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        SetVisualValue(targetValue);
+        isRolling = false;
+    }
+
     public void SetVisualValue(int value)
     {
         this.value = value;

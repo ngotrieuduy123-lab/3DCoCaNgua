@@ -21,6 +21,12 @@ public class GameOverUI : MonoBehaviour
         rankingText.text = ranking;
     }
 
+    public void AppendMessage(string message)
+    {
+        if (rankingText != null)
+            rankingText.text += message;
+    }
+
     public void RestartGame()
     {
         if (NetworkManager.Singleton != null &&

@@ -11,6 +11,27 @@ public class BoardManager : MonoBehaviour
     public BoardTile[] tiles;
     public int[] playerFinishCount = new int[4];
 
+    void Start()
+    {
+        ApplyPlayerSkins();
+    }
+
+    void ApplyPlayerSkins()
+    {
+        foreach (PieceController piece in allPieces)
+        {
+            if (piece == null)
+                continue;
+
+            PieceSkinApplicator applicator = piece.GetComponent<PieceSkinApplicator>();
+
+            if (applicator == null)
+                applicator = piece.gameObject.AddComponent<PieceSkinApplicator>();
+
+            applicator.Initialize(piece);
+        }
+    }
+
     public bool HasOwnPieceAt(int playerIndex, int tileIndex)
     {
         foreach (PieceController piece in allPieces)

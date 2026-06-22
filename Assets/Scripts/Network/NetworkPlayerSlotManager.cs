@@ -93,6 +93,21 @@ public class NetworkPlayerSlotManager : NetworkBehaviour
         {
             Debug.Log("Only one player left. End game.");
 
+            int winnerPlayerIndex = -1;
+
+            for (int i = 0; i < connectedPlayers.Length; i++)
+                if (connectedPlayers[i])
+                {
+                    winnerPlayerIndex = i;
+                    break;
+                }
+
+            if (NetworkGameResultManager.Instance != null && winnerPlayerIndex >= 0)
+            {
+                NetworkGameResultManager.Instance.EndGameFromDisconnect(winnerPlayerIndex);
+                return;
+            }
+
             if (GameManager.Instance != null)
             {
                 GameManager.Instance.SetState(GameState.GameOver);
