@@ -530,4 +530,13 @@ public class LobbyManager : NetworkBehaviour
 
         return displayName;
     }
+
+
+public void RefreshLocalProfile()
+    {
+        if (!IsSpawned)
+            return;
+
+        SubmitDisplayName();
+    }
 }

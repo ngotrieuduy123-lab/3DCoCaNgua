@@ -330,7 +330,7 @@ public class DatabaseManager : MonoBehaviour
         }
     }
 
-    public async Task<ShopResult> EquipSkin(string skinId)
+public async Task<ShopResult> EquipSkin(string skinId)
     {
         if (CurrentPlayer == null)
             return ShopFail("Please log in first.");
@@ -352,6 +352,7 @@ public class DatabaseManager : MonoBehaviour
 
             CurrentPlayer.EquippedSkinId = skinId;
             SaveSession(CurrentPlayer);
+            CacheEquippedSkinForGame(skinId);
             return ShopSuccess("Skin equipped.");
         }
         catch (Exception e)
@@ -673,5 +674,23 @@ public class DatabaseManager : MonoBehaviour
             Message = message;
             Coins = coins;
         }
+    }
+
+
+void CacheEquippedSkinForGame(string skinId)
+    {
+        skinId = string.IsNullOrWhiteSpace(skinId) ? SkinCatalog.DefaultSkinId : skinId.Trim();
+
+        PlayerPrefs.SetString("EquippedSkinId", skinId);
+
+        int localPlayerIndex = PlayerPrefs.HasKey("LocalPlayerIndex")
+            ? PlayerPrefs.GetInt("LocalPlayerIndex")
+            : 0;
+
+        if (localPlayerIndex < 0 || localPlayerIndex > 3)
+            localPlayerIndex = 0;
+
+        PlayerPrefs.SetString("PlayerSkin_" + localPlayerIndex, skinId);
+        PlayerPrefs.Save();
     }
 }

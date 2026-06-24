@@ -18,7 +18,7 @@ public class NetworkGameResultManager : NetworkBehaviour
         Instance = this;
     }
 
-    public void CheckPlayerFinished(int playerIndex)
+public void CheckPlayerFinished(int playerIndex)
     {
         if (!IsServer) return;
         if (isGameOver) return;
@@ -31,7 +31,7 @@ public class NetworkGameResultManager : NetworkBehaviour
                 count++;
         }
 
-        if (count >= 1)
+        if (count >= 4)
         {
             AddFinishedPlayer(playerIndex);
         }

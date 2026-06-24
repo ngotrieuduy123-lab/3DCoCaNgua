@@ -265,13 +265,13 @@ public class NetworkDiceManager : NetworkBehaviour
         StartCoroutine(PlayDiceVisualRoutine(d1, d2));
     }
 
-    IEnumerator PlayDiceVisualRoutine(int d1, int d2)
+IEnumerator PlayDiceVisualRoutine(int d1, int d2)
     {
-        DiceRollPresentation presentation = DiceRollPresentation.EnsureCreated();
-        yield return presentation.PlayRoll(d1, d2);
-
         visualDice1.RollVisualOnly(d1);
         visualDice2.RollVisualOnly(d2);
+
+        DiceRollPresentation presentation = DiceRollPresentation.EnsureCreated();
+        yield return presentation.PlayRoll(d1, d2);
 
         yield return new WaitUntil(() => !visualDice1.isRolling && !visualDice2.isRolling);
 

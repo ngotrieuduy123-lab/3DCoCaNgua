@@ -6,6 +6,7 @@ using UnityEngine.Rendering;
 
 public class PieceController : NetworkBehaviour
 {
+    const float StepSettleDelay = 0.035f;
     public BoardManager board;
     public PlayerColor playerColor;
     public int pieceId;
@@ -310,7 +311,7 @@ public class PieceController : NetworkBehaviour
             {
                 SoundManager.Instance.PlayMove();
             }
-            yield return new WaitForSeconds(0.1f);
+            yield return new WaitForSeconds(StepSettleDelay);
         }
         if (skinApplicator != null)
         {

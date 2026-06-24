@@ -24,7 +24,7 @@ public class DiceManager : MonoBehaviour
         StartCoroutine(RollBothRoutine());
     }
 
-    IEnumerator RollBothRoutine()
+IEnumerator RollBothRoutine()
     {
         isRolling = true;
         hasRolled = true;
@@ -35,11 +35,11 @@ public class DiceManager : MonoBehaviour
         if (SoundManager.Instance != null)
             SoundManager.Instance.PlayDice();
 
-        DiceRollPresentation presentation = DiceRollPresentation.EnsureCreated();
-        yield return presentation.PlayRoll(firstValue, secondValue);
-
         dice1.RollVisualOnly(firstValue);
         dice2.RollVisualOnly(secondValue);
+
+        DiceRollPresentation presentation = DiceRollPresentation.EnsureCreated();
+        yield return presentation.PlayRoll(firstValue, secondValue);
 
         yield return new WaitUntil(() => !dice1.isRolling && !dice2.isRolling);
 

@@ -30,7 +30,7 @@ MonoBehaviour:
   flightHeight: 0.008
   flightTurnDuration: 0.18
   flightLocalOffset: {x: 0, y: 0.00599, z: 0.00052}
-  movementSpeed: 0.28
+  movementSpeed: 0.36
   localPosition: {x: 0, y: 0, z: 0.00015}
   localEulerAngles: {x: 90, y: 0, z: 0}
   localScale: {x: 0.0027, y: 0.0027, z: 0.0027}

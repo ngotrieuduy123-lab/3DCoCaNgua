@@ -19,12 +19,18 @@ MonoBehaviour:
   includedByDefault: 0
   previewImage: {fileID: 21300000, guid: dda7648fefbc24f4a82a0205c5c8f826, type: 3}
   modelPrefab: {fileID: 8771091787928289351, guid: c35310b53ef96f94e9a09415b056ba4d, type: 3}
+  movementStyle: 0
   walkAnimation: {fileID: -1881101361428871385, guid: c35310b53ef96f94e9a09415b056ba4d, type: 3}
   turnLeftAnimation: {fileID: 7400000, guid: b6bdd05f67cd688469850a577d8b6771, type: 2}
   turnRightAnimation: {fileID: 7400000, guid: d53efcac70f2c4c4190dd869d88b9807, type: 2}
   turnPlaybackSpeed: 1.8
   turnThresholdDegrees: 12
-  movementSpeed: 0.2
+  transformAnimation: {fileID: 0}
+  transformPlaybackSpeed: 4
+  flightHeight: 0.008
+  flightTurnDuration: 0.2
+  flightLocalOffset: {x: 0, y: 0, z: 0}
+  movementSpeed: 0.28
   localPosition: {x: 0, y: 0, z: 0}
   localEulerAngles: {x: 90, y: 0, z: 0}
   localScale: {x: 0.0075, y: 0.0075, z: 0.0075}

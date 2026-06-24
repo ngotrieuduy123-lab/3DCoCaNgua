@@ -43,6 +43,12 @@ public class MovePathHighlighter : MonoBehaviour
     [SerializeField] float markerRightOffset = 0.012f;
     [SerializeField] float markerForwardOffset = -0.024f;
 
+    [Header("Editable Per-Tile Anchors")]
+    [Tooltip("Edit these child anchors in the scene to tune each move highlight independently.")]
+    [SerializeField] Transform editableAnchorContainer;
+    [SerializeField] bool useEditableAnchors = true;
+    [SerializeField] bool hideEditableAnchorsInPlay = true;
+
     [Header("Ring Size")]
     [SerializeField] int ringSegments = 56;
     [SerializeField] float stepRingRadius = 0.038f;
@@ -74,7 +80,7 @@ public class MovePathHighlighter : MonoBehaviour
         instance.Clear();
     }
 
-    void Awake()
+void Awake()
     {
         if (instance != null && instance != this)
         {
@@ -84,6 +90,8 @@ public class MovePathHighlighter : MonoBehaviour
 
         instance = this;
         EnsureMarkerContainer();
+        EnsureEditableAnchorContainer();
+        HideEditableAnchorVisualsForPlay();
     }
 
     Transform EnsureMarkerContainer()
@@ -100,6 +108,35 @@ public class MovePathHighlighter : MonoBehaviour
         markerContainer.SetParent(transform, false);
         return markerContainer;
     }
+
+Transform EnsureEditableAnchorContainer()
+    {
+        if (editableAnchorContainer != null)
+            return editableAnchorContainer;
+
+        editableAnchorContainer = transform.Find("Editable Highlight Anchors");
+        if (editableAnchorContainer != null)
+            return editableAnchorContainer;
+
+        GameObject container = new GameObject("Editable Highlight Anchors");
+        editableAnchorContainer = container.transform;
+        editableAnchorContainer.SetParent(transform, false);
+        return editableAnchorContainer;
+    }
+
+    void HideEditableAnchorVisualsForPlay()
+    {
+        if (!Application.isPlaying || !hideEditableAnchorsInPlay)
+            return;
+
+        Transform anchors = EnsureEditableAnchorContainer();
+        foreach (Renderer renderer in anchors.GetComponentsInChildren<Renderer>(true))
+            renderer.enabled = false;
+
+        foreach (Collider collider in anchors.GetComponentsInChildren<Collider>(true))
+            collider.enabled = false;
+    }
+
 
     public void Clear()
     {
@@ -213,7 +250,7 @@ public class MovePathHighlighter : MonoBehaviour
         return positions;
     }
 
-    void CreateMarker(Vector3 boardPosition, bool isTarget, int playerIndex)
+void CreateMarker(Vector3 boardPosition, bool isTarget, int playerIndex)
     {
         string markerKey = GetMarkerKey(boardPosition, isTarget);
 
@@ -226,11 +263,7 @@ public class MovePathHighlighter : MonoBehaviour
         markerObject.name = isTarget ? "MoveTargetMarker" : "MoveStepMarker";
         SetIgnoreRaycastLayer(markerObject);
         markerObject.transform.SetParent(EnsureMarkerContainer(), false);
-        markerObject.transform.localPosition =
-            boardPosition +
-            Vector3.up * markerYOffset +
-            Vector3.right * markerRightOffset +
-            Vector3.forward * markerForwardOffset;
+        markerObject.transform.position = GetMarkerWorldPosition(boardPosition);
         markerObject.transform.rotation = Quaternion.identity;
 
         LineRenderer ringRenderer = markerObject.AddComponent<LineRenderer>();
@@ -297,14 +330,62 @@ public class MovePathHighlighter : MonoBehaviour
             target.layer = ignoreRaycastLayer;
     }
 
-    string GetMarkerKey(Vector3 position, bool isTarget)
+string GetMarkerKey(Vector3 position, bool isTarget)
+    {
+        return (isTarget ? "T" : "S") + GetPositionKey(position);
+    }
+
+string GetPositionKey(Vector3 position)
     {
         int x = Mathf.RoundToInt(position.x * 100f);
         int y = Mathf.RoundToInt(position.y * 100f);
         int z = Mathf.RoundToInt(position.z * 100f);
 
-        return (isTarget ? "T" : "S") + x + "_" + y + "_" + z;
+        return x + "_" + y + "_" + z;
     }
+
+    Vector3 GetMarkerWorldPosition(Vector3 boardPosition)
+    {
+        Transform anchor = FindEditableAnchor(boardPosition);
+        if (anchor != null)
+            return anchor.position;
+
+        return boardPosition +
+            Vector3.up * markerYOffset +
+            Vector3.right * markerRightOffset +
+            Vector3.forward * markerForwardOffset;
+    }
+
+    Transform FindEditableAnchor(Vector3 boardPosition)
+    {
+        if (!useEditableAnchors)
+            return null;
+
+        Transform anchors = EnsureEditableAnchorContainer();
+        if (anchors == null)
+            return null;
+
+        return FindChildByNameRecursive(anchors, "HighlightAnchor_" + GetPositionKey(boardPosition));
+    }
+
+    Transform FindChildByNameRecursive(Transform root, string childName)
+    {
+        if (root == null)
+            return null;
+
+        foreach (Transform child in root)
+        {
+            if (child.name == childName || child.name.StartsWith(childName + "__"))
+                return child;
+
+            Transform found = FindChildByNameRecursive(child, childName);
+            if (found != null)
+                return found;
+        }
+
+        return null;
+    }
+
 
     Material CreateMarkerMaterial(bool isTarget, int playerIndex, float alpha)
     {

@@ -202,7 +202,7 @@ public class SkinShopUI : MonoBehaviour
             StyleCoinPriceButton(button);
     }
 
-    async void HandleSkin(SkinDefinition skin, bool owned)
+async void HandleSkin(SkinDefinition skin, bool owned)
     {
         if (DatabaseManager.Instance == null)
             return;
@@ -216,6 +216,9 @@ public class SkinShopUI : MonoBehaviour
         DatabaseManager.ShopResult result = ownedOnly
             ? await DatabaseManager.Instance.EquipSkin(skin.id)
             : await DatabaseManager.Instance.PurchaseSkin(skin.id);
+
+        if (result.Success && ownedOnly && LobbyManager.Instance != null)
+            LobbyManager.Instance.RefreshLocalProfile();
 
         statusText.text = result.Message;
         Refresh();

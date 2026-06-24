@@ -107,11 +107,17 @@ public class NetworkPieceMoveManager : NetworkBehaviour
         return null;
     }
 
-    void EndNetworkTurnAfterMove()
+void EndNetworkTurnAfterMove()
     {
-        NetworkGameResultManager.Instance.CheckPlayerFinished(
-            NetworkTurnManager.Instance.currentPlayerIndex.Value
-        );
+        if (NetworkGameResultManager.Instance != null)
+        {
+            NetworkGameResultManager.Instance.CheckPlayerFinished(
+                NetworkTurnManager.Instance.currentPlayerIndex.Value
+            );
+
+            if (NetworkGameResultManager.Instance.isGameOver)
+                return;
+        }
 
         bool extraTurn =
             networkDiceManager.IsDouble() &&
