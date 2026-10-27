@@ -1,0 +1,6 @@
+@page
+@model CoCaNgua.Server.Pages.LoginModel
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Đăng nhập · Cờ Cá Ngựa</title><link rel="stylesheet" href="/admin.css" /></head>
+<body class="login-body"><main class="login-card"><div class="brand-mark">♞</div><p class="eyebrow">CỜ CÁ NGỰA / CONTROL ROOM</p><h1>Quản trị game</h1><p class="muted">Đăng nhập bằng tài khoản quản trị server.</p>
+<form method="post"><label>Tài khoản<input asp-for="Username" autocomplete="username" required maxlength="80" /></label><label>Mật khẩu<input asp-for="Password" type="password" autocomplete="current-password" required maxlength="128" /></label><p class="error">@Model.Error</p><button type="submit">Đăng nhập →</button></form><p class="small muted">Thông tin đăng nhập nằm trong cấu hình local của backend.</p></main></body></html>

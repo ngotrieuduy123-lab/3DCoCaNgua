@@ -253,6 +253,7 @@ public class NetworkRoomControlManager : NetworkBehaviour
 
     IEnumerator ReturnLocalClientToLobbyRoutine()
     {
+        if (DatabaseManager.Instance != null) _ = DatabaseManager.Instance.LeaveBackendRoom();
         localReturnedToLobby = true;
         yield return new WaitForSecondsRealtime(0.35f);
 
@@ -264,6 +265,7 @@ public class NetworkRoomControlManager : NetworkBehaviour
 
     IEnumerator ReturnWholeRoomToLobbyRoutine()
     {
+        if (DatabaseManager.Instance != null) _ = DatabaseManager.Instance.LeaveBackendRoom();
         localReturnedToLobby = true;
         yield return new WaitForSecondsRealtime(0.45f);
 

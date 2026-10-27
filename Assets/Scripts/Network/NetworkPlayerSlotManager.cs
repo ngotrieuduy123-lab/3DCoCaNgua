@@ -152,6 +152,22 @@ public class NetworkPlayerSlotManager : NetworkBehaviour
         return -1;
     }
 
+    // Lobby order is also the backend participant/colour order. Compact slots after a lobby departure.
+    public void SetLobbySlots(ulong[] orderedClientIds)
+    {
+        if (!IsServer) return;
+        clientToPlayerIndex.Clear();
+        playerIndexToClient.Clear();
+        System.Array.Clear(connectedPlayers, 0, connectedPlayers.Length);
+        for (int slot = 0; slot < orderedClientIds.Length && slot < connectedPlayers.Length; slot++)
+        {
+            ulong clientId = orderedClientIds[slot];
+            clientToPlayerIndex[clientId] = slot;
+            playerIndexToClient[slot] = clientId;
+            connectedPlayers[slot] = true;
+        }
+    }
+
     public ulong GetClientId(int playerIndex)
     {
         if (playerIndexToClient.ContainsKey(playerIndex))

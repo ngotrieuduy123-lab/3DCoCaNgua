@@ -125,13 +125,22 @@ public class SkinShopUI : MonoBehaviour
         SetRect(statusText.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(30f, 28f), new Vector2(-60f, 42f));
     }
 
-    void Open(bool showOwnedOnly)
+    async void Open(bool showOwnedOnly)
     {
         ownedOnly = showOwnedOnly;
         panel.SetActive(true);
         statusText.text = "";
         titleText.text = ownedOnly ? "MY SKINS" : "SKIN SHOP";
-        Refresh();
+        statusText.text = "Loading skins...";
+        try
+        {
+            if (DatabaseManager.Instance == null) return;
+            await DatabaseManager.Instance.RefreshSkins();
+            if (this == null) return;
+            Refresh();
+            statusText.text = "";
+        }
+        catch (System.Exception e) { if (this != null) statusText.text = e.Message; }
     }
 
     void Refresh()
@@ -156,36 +165,32 @@ public class SkinShopUI : MonoBehaviour
             if (skin == null)
                 continue;
 
+            DatabaseManager.BackendSkin sale = System.Array.Find(DatabaseManager.Instance.AvailableSkins, item => item.id == skin.id);
+            if (sale == null || (!ownedOnly && !sale.isForSale)) continue;
+
             bool owned = player != null && DatabaseManager.Instance.CurrentPlayerOwnsSkin(skin.id);
             if (ownedOnly && !owned)
                 continue;
 
-            CreateSkinRow(skin, player, owned);
+            CreateSkinRow(skin, sale, player, owned);
         }
     }
 
-    void CreateSkinRow(SkinDefinition skin, PlayerData player, bool owned)
+    void CreateSkinRow(SkinDefinition skin, DatabaseManager.BackendSkin sale, PlayerData player, bool owned)
     {
         GameObject row = CreatePanel(listRoot, skin.id, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 128f), new Color(0.13f, 0.17f, 0.24f, 1f));
         LayoutElement layout = row.AddComponent<LayoutElement>();
         layout.preferredHeight = 128f;
 
-        GameObject previewObject = CreatePanel(row.transform, "Preview", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(14f, 0f), new Vector2(104f, 104f), new Color(0.055f, 0.075f, 0.11f, 1f));
-        RectTransform previewRect = previewObject.GetComponent<RectTransform>();
-        previewRect.pivot = new Vector2(0f, 0.5f);
-        Image preview = previewObject.GetComponent<Image>();
-        preview.sprite = skin.previewImage;
-        preview.preserveAspect = true;
-        preview.color = skin.previewImage != null ? Color.white : new Color(0.055f, 0.075f, 0.11f, 1f);
-
-        TMP_Text label = CreateText(row.transform, skin.displayName + "\n<size=18><color=#AEBBD0>" + skin.description + "</color></size>", 25f, TextAlignmentOptions.MidlineLeft);
-        SetRect(label.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(130f, 10f), new Vector2(-322f, -20f));
+        TMP_Text label = CreateText(row.transform, sale.name, 25f, TextAlignmentOptions.MidlineLeft);
+        label.richText = false;
+        SetRect(label.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(24f, 10f), new Vector2(-220f, -20f));
 
         bool equipped = player != null && player.EquippedSkinId == skin.id;
         bool showPrice = !ownedOnly && !owned;
         string action = ownedOnly
             ? (equipped ? "Equipped" : "Equip")
-            : (owned ? "Already have" : skin.price.ToString("N0"));
+            : (owned ? "Already have" : sale.price.ToString("N0"));
         bool canInteract = ownedOnly
             ? owned && !equipped && player != null
             : !owned && player != null;

@@ -14,23 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SkinDefinition
   id: arya
   displayName: Arya
-  description: Arya character skin with walking motion.
+  description: Arya with walking and left/right turn animations.
   price: 5000
   includedByDefault: 0
-  previewImage: {fileID: 21300000, guid: 3c04f72d1d10b1b479884840fe027e37, type: 3}
-  modelPrefab: {fileID: 7712117976854233066, guid: 3f7495c81bbf0bc489e02794608832b9, type: 3}
+  previewImage: {fileID: 0}
+  modelPrefab: {fileID: 4246194537643930201, guid: 995633d64c40ceb4b8438d09157214b0, type: 3}
   movementStyle: 0
-  walkAnimation: {fileID: 7400000, guid: 50d4ba0e84ec53d45be094ec757c9673, type: 2}
-  turnLeftAnimation: {fileID: 0}
-  turnRightAnimation: {fileID: 0}
+  walkAnimation: {fileID: 7400000, guid: 7b95666d7e5299c468b8676c0a5484e8, type: 2}
+  turnLeftAnimation: {fileID: 7400000, guid: d7193ebcbbdaa1a48918b3e2f7431267, type: 2}
+  turnRightAnimation: {fileID: 7400000, guid: 1872febf046a47749ae09ba19aaccdb3, type: 2}
   turnPlaybackSpeed: 1.8
-  turnThresholdDegrees: 10
+  turnThresholdDegrees: 12
   transformAnimation: {fileID: 0}
   transformPlaybackSpeed: 4
-  flightHeight: 0
+  flightHeight: 0.008
   flightTurnDuration: 0.2
   flightLocalOffset: {x: 0, y: 0, z: 0}
-  movementSpeed: 0.33
-  localPosition: {x: 0, y: 0, z: 0}
-  localEulerAngles: {x: 0, y: 0, z: 0}
-  localScale: {x: 2, y: 2, z: 2}
+  movementSpeed: 0.28
+  localPosition: {x: 0, y: 0, z: -0.000028241637}
+  localEulerAngles: {x: 90, y: 0, z: 0}
+  localScale: {x: 1.9712816, y: 1.9712816, z: 1.9712816}

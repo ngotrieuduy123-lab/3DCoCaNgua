@@ -42,6 +42,17 @@ crashlytics-build.properties
 InitTestScene*.unity*
 steam_appid.txt
 
+# C# backend build output and local secrets
+**/bin/
+**/obj/
+/Backend/.packages/
+/Backend/.keys/
+/Backend/appsettings.Local.json
+/Backend/*.log
+/Backend.Tests/*.log
+!/Backend/*.csproj
+!/Backend.Tests/*.csproj
+
 # Asset recovery and generated plugin data
 Assets/_Recovery/
 /[Aa]ssets/Plugins/Editor/JetBrains*

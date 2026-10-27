@@ -24,6 +24,11 @@ public class NetworkExitManager : MonoBehaviour
 
     IEnumerator LeaveRoutine()
     {
+        if (DatabaseManager.Instance != null)
+        {
+            var leaveTask = DatabaseManager.Instance.LeaveBackendRoom();
+            yield return new WaitUntil(() => leaveTask.IsCompleted);
+        }
         if (NetworkManager.Singleton != null &&
             NetworkManager.Singleton.IsListening)
         {

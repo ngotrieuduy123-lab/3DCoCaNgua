@@ -89,6 +89,9 @@ public class RelayManager : MonoBehaviour
                 await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
             currentJoinCode = joinCode;
 
+            if (DatabaseManager.Instance == null || !await DatabaseManager.Instance.RegisterRoom(joinCode, true))
+                throw new System.InvalidOperationException(DatabaseManager.Instance != null ? DatabaseManager.Instance.LastMessage : "Please log in first.");
+
             var transport =
                 networkManager.GetComponent<UnityTransport>();
 
@@ -98,6 +101,7 @@ public class RelayManager : MonoBehaviour
             );
 
             bool result = networkManager.StartHost();
+            if (!result) throw new System.InvalidOperationException("Could not start host.");
 
 
             if (joinCodeText != null)
@@ -109,6 +113,7 @@ public class RelayManager : MonoBehaviour
         }
         catch (System.Exception e)
         {
+            if (DatabaseManager.Instance != null) await DatabaseManager.Instance.LeaveBackendRoom();
             SetStatus("Create relay failed: " + e.Message);
         }
         finally
@@ -150,6 +155,9 @@ public class RelayManager : MonoBehaviour
             var joinAllocation =
                 await RelayService.Instance.JoinAllocationAsync(code);
 
+            if (DatabaseManager.Instance == null || !await DatabaseManager.Instance.RegisterRoom(code, false))
+                throw new System.InvalidOperationException(DatabaseManager.Instance != null ? DatabaseManager.Instance.LastMessage : "Please log in first.");
+
             lastJoinCode = code;
 
             var transport =
@@ -161,6 +169,7 @@ public class RelayManager : MonoBehaviour
             );
 
             bool result = networkManager.StartClient();
+            if (!result) throw new System.InvalidOperationException("Could not start client.");
             if (result)
             {
                 SetStatus("Waiting for host to load lobby...");
@@ -170,6 +179,7 @@ public class RelayManager : MonoBehaviour
         }
         catch (System.Exception e)
         {
+            if (DatabaseManager.Instance != null) await DatabaseManager.Instance.LeaveBackendRoom();
             SetStatus("Join relay failed: " + e.Message);
         }
         finally
@@ -232,6 +242,8 @@ public class RelayManager : MonoBehaviour
         SetBusy(true, "Leaving room...");
         SetStatus("Leaving room...");
 
+        if (DatabaseManager.Instance != null) await DatabaseManager.Instance.LeaveBackendRoom();
+
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
         {
             if (LobbyManager.Instance != null &&
@@ -261,8 +273,13 @@ public class RelayManager : MonoBehaviour
         SetBusy(false);
     }
 
-    public void BackToAuth()
+    public async void BackToAuth()
     {
+        if (DatabaseManager.Instance != null)
+        {
+            await DatabaseManager.Instance.LeaveBackendRoom();
+            await DatabaseManager.Instance.LogoutAsync();
+        }
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
             NetworkManager.Singleton.Shutdown();
 
@@ -389,6 +406,7 @@ public class RelayManager : MonoBehaviour
 
     IEnumerator ReturnToLobbyAfterDisconnect(string message)
     {
+        if (DatabaseManager.Instance != null) _ = DatabaseManager.Instance.LeaveBackendRoom();
         returningAfterDisconnect = true;
         SetBusy(true, message);
         SetStatus(message);

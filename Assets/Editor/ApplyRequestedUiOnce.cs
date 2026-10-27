@@ -1,12 +1,12 @@
 using UnityEditor;
 using UnityEngine;
 
-[InitializeOnLoad]
 public static class ApplyRequestedUiOnce
 {
     const string SessionKey = "3DCoCaNgua.ApplyRequestedUiOnce.20260621";
 
-    static ApplyRequestedUiOnce()
+    [MenuItem("Tools/3DCoCaNgua/Apply Requested UI Once")]
+    public static void ApplyRequestedUi()
     {
         EditorApplication.delayCall += Apply;
     }

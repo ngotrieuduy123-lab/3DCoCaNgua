@@ -84,6 +84,8 @@ public class NetworkDiceManager : NetworkBehaviour
     {
         int d1 = Random.Range(1, 7);
         int d2 = Random.Range(1, 7);
+        if (DatabaseManager.Instance != null)
+            DatabaseManager.Instance.RecordDiceRoll(NetworkTurnManager.Instance.currentPlayerIndex.Value, d1, d2);
         PlayDiceVisualClientRpc(d1, d2);
         if (NetworkSoundManager.Instance != null)
         {
@@ -201,6 +203,7 @@ public class NetworkDiceManager : NetworkBehaviour
 
     bool CanSenderRoll(ulong senderClientId)
     {
+        if (GameManager.Instance == null || GameManager.Instance.IsState(GameState.GameOver)) return false;
         int currentPlayer = NetworkTurnManager.Instance.currentPlayerIndex.Value;
 
         int senderPlayerIndex = NetworkPlayerIndexUtility.GetPlayerIndex(senderClientId);

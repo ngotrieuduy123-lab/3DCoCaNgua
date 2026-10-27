@@ -17,7 +17,7 @@ MonoBehaviour:
   description: Transforms into an aircraft while moving.
   price: 5000
   includedByDefault: 0
-  previewImage: {fileID: 21300000, guid: 1192825e0b4b5ec4aa35d9d474c83b82, type: 3}
+  previewImage: {fileID: 0}
   modelPrefab: {fileID: 8128668236925612103, guid: cc4b29f38d94e724ea0710b51ce5253d, type: 3}
   movementStyle: 1
   walkAnimation: {fileID: 0}

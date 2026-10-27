@@ -17,7 +17,7 @@ MonoBehaviour:
   description: Unicorn mobile suit piece
   price: 5000
   includedByDefault: 0
-  previewImage: {fileID: 21300000, guid: dda7648fefbc24f4a82a0205c5c8f826, type: 3}
+  previewImage: {fileID: 0}
   modelPrefab: {fileID: 8771091787928289351, guid: c35310b53ef96f94e9a09415b056ba4d, type: 3}
   movementStyle: 0
   walkAnimation: {fileID: -1881101361428871385, guid: c35310b53ef96f94e9a09415b056ba4d, type: 3}

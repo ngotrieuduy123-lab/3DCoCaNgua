@@ -87,32 +87,23 @@ public void CheckPlayerFinished(int playerIndex)
         CompleteGame("Opponent disconnected");
     }
 
-    void CompleteGame(string reason)
+    async void CompleteGame(string reason)
     {
         if (isGameOver)
             return;
 
         isGameOver = true;
+        int playerCount = NetworkTurnManager.Instance != null ? NetworkTurnManager.Instance.playerCount.Value : PlayerPrefs.GetInt("PlayerCount", 2);
+        for (int slot = 0; slot < playerCount; slot++)
+            if (!finishOrder.Contains(slot)) finishOrder.Add(slot);
         int winnerPlayerIndex = finishOrder.Count > 0 ? finishOrder[0] : -1;
-        string rewardId = Guid.NewGuid().ToString("N");
-
-        EndMatchHistory(reason);
-        ShowGameOverClientRpc(GetRankingText(), winnerPlayerIndex, rewardId);
-    }
-
-    async void EndMatchHistory(string reason)
-    {
-        if (DatabaseManager.Instance == null)
-            return;
-
-        string matchHistoryId = PlayerPrefs.GetString("CurrentMatchHistoryId", "");
-
-        if (string.IsNullOrWhiteSpace(matchHistoryId))
-            return;
-
-        await DatabaseManager.Instance.EndMatchHistory(matchHistoryId, reason);
-        PlayerPrefs.DeleteKey("CurrentMatchHistoryId");
-        PlayerPrefs.Save();
+        GameManager.Instance.SetState(GameState.GameOver);
+        ShowPendingResultClientRpc(GetRankingText());
+        string matchId = DatabaseManager.Instance != null ? DatabaseManager.Instance.CurrentMatchId : "";
+        bool saved = DatabaseManager.Instance != null &&
+            await DatabaseManager.Instance.FinishMatch(matchId, finishOrder.ToArray(), reason);
+        if (this == null || !IsSpawned) return;
+        ShowGameOverClientRpc(GetRankingText(), winnerPlayerIndex, saved ? matchId : "");
     }
 
     string GetRankingText()
@@ -130,11 +121,20 @@ public void CheckPlayerFinished(int playerIndex)
     }
 
     [Rpc(SendTo.ClientsAndHost)]
+    void ShowPendingResultClientRpc(string ranking)
+    {
+        gameOverUI.ShowRanking(ranking);
+        gameOverUI.AppendMessage("\nSaving result...");
+        GameManager.Instance.SetState(GameState.GameOver);
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
     void ShowGameOverClientRpc(string ranking, int winnerPlayerIndex, string rewardId)
     {
         gameOverUI.ShowRanking(ranking);
         GameManager.Instance.SetState(GameState.GameOver);
-        AwardLocalWinner(winnerPlayerIndex, rewardId);
+        if (!string.IsNullOrEmpty(rewardId)) AwardLocalWinner(winnerPlayerIndex, rewardId);
+        else gameOverUI.AppendMessage("\nCould not confirm the result with backend. No reward confirmation is available.");
     }
 
     async void AwardLocalWinner(int winnerPlayerIndex, string rewardId)

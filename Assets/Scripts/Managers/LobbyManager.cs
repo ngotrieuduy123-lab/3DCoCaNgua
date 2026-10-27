@@ -17,6 +17,7 @@ public class LobbyManager : NetworkBehaviour
     public NetworkList<ulong> playerClientIds;
     public NetworkList<FixedString32Bytes> playerNames;
     public NetworkList<FixedString32Bytes> playerSkinIds;
+    public NetworkList<FixedString64Bytes> playerAccountIds;
     public NetworkList<bool> readyStates;
 
     bool isStartingGame;
@@ -28,6 +29,7 @@ public class LobbyManager : NetworkBehaviour
         playerClientIds = new NetworkList<ulong>();
         playerNames = new NetworkList<FixedString32Bytes>();
         playerSkinIds = new NetworkList<FixedString32Bytes>();
+        playerAccountIds = new NetworkList<FixedString64Bytes>();
         readyStates = new NetworkList<bool>();
     }
 
@@ -46,6 +48,7 @@ public class LobbyManager : NetworkBehaviour
             playerClientIds.Clear();
             playerNames.Clear();
             playerSkinIds.Clear();
+            playerAccountIds.Clear();
             readyStates.Clear();
 
             foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
@@ -137,7 +140,7 @@ public class LobbyManager : NetworkBehaviour
     {
         if (NetworkManager.Singleton == null) return;
 
-        ToggleReadyServerRpc(NetworkManager.Singleton.LocalClientId);
+        ToggleReadyServerRpc();
     }
 
     public void RequestLeaveLobby()
@@ -163,10 +166,10 @@ public class LobbyManager : NetworkBehaviour
             roomCodeText.text = "Code: -";
     }
 
-    [Rpc(SendTo.Server)]
-    void ToggleReadyServerRpc(ulong clientId)
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    void ToggleReadyServerRpc(RpcParams rpcParams = default)
     {
-        int index = GetPlayerIndexByClientId(clientId);
+        int index = GetPlayerIndexByClientId(rpcParams.Receive.SenderClientId);
 
         if (index >= 0 && index < readyStates.Count)
         {
@@ -187,18 +190,21 @@ public class LobbyManager : NetworkBehaviour
 
         string displayName = GetLocalDisplayName();
         string skinId = GetLocalSkinId();
+        string accountId = DatabaseManager.Instance != null && DatabaseManager.Instance.CurrentPlayer != null
+            ? DatabaseManager.Instance.CurrentPlayer.Id : "";
 
         if (IsServer)
         {
             SetPlayerProfile(NetworkManager.Singleton.LocalClientId, displayName, skinId);
+            SetAccountId(NetworkManager.Singleton.LocalClientId, accountId);
             return;
         }
 
-        SubmitPlayerProfileServerRpc(displayName, skinId);
+        SubmitPlayerProfileServerRpc(displayName, skinId, accountId);
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    void SubmitPlayerProfileServerRpc(string displayName, string skinId, RpcParams rpcParams = default)
+    void SubmitPlayerProfileServerRpc(string displayName, string skinId, string accountId, RpcParams rpcParams = default)
     {
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
@@ -206,6 +212,7 @@ public class LobbyManager : NetworkBehaviour
             AddPlayer(senderClientId);
 
         SetPlayerProfile(senderClientId, displayName, skinId);
+        SetAccountId(senderClientId, accountId);
     }
 
     IEnumerator SubmitDisplayNameRoutine()
@@ -263,6 +270,36 @@ public class LobbyManager : NetworkBehaviour
             }
         }
 
+        if (DatabaseManager.Instance == null || playerAccountIds.Count != count)
+        {
+            RejectStart("Backend player profiles are not ready.");
+            return;
+        }
+
+        string[] accountIds = new string[count];
+        for (int i = 0; i < count; i++) accountIds[i] = playerAccountIds[i].ToString();
+        string matchHistoryId = await DatabaseManager.Instance.BeginMatchHistory(accountIds);
+        if (this == null || !IsSpawned || NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+        {
+            if (DatabaseManager.Instance != null && !string.IsNullOrEmpty(matchHistoryId))
+                await DatabaseManager.Instance.EndMatchHistory(matchHistoryId, "Room closed before game started");
+            return;
+        }
+        if (string.IsNullOrEmpty(matchHistoryId))
+        {
+            RejectStart(DatabaseManager.Instance.LastMessage);
+            return;
+        }
+        bool rosterChanged = GetPlayerCount() != count;
+        for (int i = 0; !rosterChanged && i < count; i++)
+            rosterChanged = playerAccountIds[i].ToString() != accountIds[i] || !readyStates[i];
+        if (rosterChanged)
+        {
+            await DatabaseManager.Instance.EndMatchHistory(matchHistoryId, "Players changed while starting");
+            if (this != null && IsSpawned) RejectStart("Players changed while starting. Leave and recreate the room.");
+            return;
+        }
+
         CachePlayerMappingsForGame();
         PlayerPrefs.SetInt("PlayerCount", count);
         CacheTurnDisplayNamesClientRpc(
@@ -277,15 +314,6 @@ public class LobbyManager : NetworkBehaviour
             GetPlayerSkinIdForCache(3)
         );
 
-        if (DatabaseManager.Instance != null)
-        {
-            PlayerPrefs.DeleteKey("CurrentMatchHistoryId");
-            string matchHistoryId = await DatabaseManager.Instance.BeginMatchHistory(count);
-
-            if (!string.IsNullOrWhiteSpace(matchHistoryId))
-                PlayerPrefs.SetString("CurrentMatchHistoryId", matchHistoryId);
-        }
-
         Debug.Log("Start game with player count: " + count);
         ShowLoadingClientRpc("Starting game...");
 
@@ -293,6 +321,20 @@ public class LobbyManager : NetworkBehaviour
             "GameScene",
             LoadSceneMode.Single
         );
+    }
+
+    void RejectStart(string message)
+    {
+        isStartingGame = false;
+        if (loadingOverlay != null) loadingOverlay.Hide();
+        SetStatusClientRpc(message);
+    }
+
+    void SetAccountId(ulong clientId, string accountId)
+    {
+        int index = GetPlayerIndexByClientId(clientId);
+        if (index >= 0 && index < playerAccountIds.Count && accountId != null && accountId.Length == 24)
+            playerAccountIds[index] = accountId;
     }
 
     [Rpc(SendTo.ClientsAndHost)]
@@ -370,6 +412,7 @@ public class LobbyManager : NetworkBehaviour
         playerClientIds.Add(clientId);
         playerNames.Add("Player " + nextIndex);
         playerSkinIds.Add(SkinCatalog.DefaultSkinId);
+        playerAccountIds.Add("");
         readyStates.Add(false);
 
         CachePlayerMappingsForGame();
@@ -388,6 +431,7 @@ public class LobbyManager : NetworkBehaviour
         playerClientIds.RemoveAt(index);
         playerNames.RemoveAt(index);
         playerSkinIds.RemoveAt(index);
+        playerAccountIds.RemoveAt(index);
         readyStates.RemoveAt(index);
 
         CachePlayerMappingsForGame();
@@ -420,6 +464,12 @@ public class LobbyManager : NetworkBehaviour
     void CachePlayerMappingsForGame()
     {
         int count = GetPlayerCount();
+        if (IsServer && NetworkPlayerSlotManager.Instance != null)
+        {
+            ulong[] orderedClientIds = new ulong[count];
+            for (int i = 0; i < count; i++) orderedClientIds[i] = playerClientIds[i];
+            NetworkPlayerSlotManager.Instance.SetLobbySlots(orderedClientIds);
+        }
 
         for (int i = 0; i < count; i++)
         {

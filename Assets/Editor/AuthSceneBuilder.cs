@@ -48,7 +48,7 @@ public static class AuthSceneBuilder
         title.text = "3D Co Ca Ngua";
 
         TextMeshProUGUI subtitle = CreateText("Subtitle", card.transform, new Vector2(0, 205), new Vector2(460, 44), 18, FontStyles.Normal);
-        subtitle.text = "MongoDB account login";
+        subtitle.text = "Sign in to play";
         subtitle.color = new Color(0.33f, 0.38f, 0.46f, 1f);
 
         GameObject loginPanel = CreatePanel("LoginPanel", card.transform, new Vector2(0, -15), new Vector2(440, 330), new Color(1f, 1f, 1f, 0f));
