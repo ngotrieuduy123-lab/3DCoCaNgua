@@ -1,5 +1,5 @@
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -18,53 +18,52 @@ public class NetworkGameResultManager : NetworkBehaviour
         Instance = this;
     }
 
-public void CheckPlayerFinished(int playerIndex)
+    public void CheckPlayerFinished(int playerIndex)
     {
-        if (!IsServer) return;
-        if (isGameOver) return;
-
-        int count = 0;
-
-        foreach (PieceController piece in boardManager.allPieces)
-        {
-            if (piece.playerIndex == playerIndex && piece.isFinished)
-                count++;
-        }
-
-        if (count >= 4)
-        {
-            AddFinishedPlayer(playerIndex);
-        }
+        // In Party Clash v0.2, matches finish when the 10-minute clock + Final Round completes
     }
 
-    void AddFinishedPlayer(int playerIndex)
+    public void CompletePartyClashMatchServer(string reason = "Match finished")
     {
-        if (finishOrder.Contains(playerIndex)) return;
+        if (!IsServer || isGameOver)
+            return;
 
-        finishOrder.Add(playerIndex);
+        int playerCount = NetworkTurnManager.Instance != null
+            ? Mathf.Clamp(NetworkTurnManager.Instance.playerCount.Value, 2, 4)
+            : Mathf.Clamp(PlayerPrefs.GetInt("PlayerCount", 2), 2, 4);
 
-        int activeCount = 0;
-        int lastPlayer = -1;
+        finishOrder.Clear();
 
-        for (int i = 0; i < NetworkTurnManager.Instance.playerCount.Value; i++)
+        if (boardManager != null)
         {
-            if (NetworkRoomControlManager.Instance != null &&
-                !NetworkRoomControlManager.Instance.IsPlayerActive(i))
-                continue;
+            finishOrder.AddRange(boardManager.GetSortedRankingOrder(playerCount));
+        }
+        else
+        {
+            for (int i = 0; i < playerCount; i++)
+                finishOrder.Add(i);
+        }
 
-            if (!finishOrder.Contains(i))
+        bool anyScore = false;
+        if (boardManager != null)
+        {
+            for (int i = 0; i < playerCount; i++)
             {
-                activeCount++;
-                lastPlayer = i;
+                if (boardManager.playerScores[i] > 0)
+                {
+                    anyScore = true;
+                    break;
+                }
             }
         }
 
-        if (activeCount <= 1)
+        if (!anyScore)
         {
-            if (lastPlayer != -1)
-                finishOrder.Add(lastPlayer);
-
-            CompleteGame("Game finished");
+            CompleteGame("Draw (0 points)", true);
+        }
+        else
+        {
+            CompleteGame(reason, false);
         }
     }
 
@@ -73,48 +72,75 @@ public void CheckPlayerFinished(int playerIndex)
         if (!IsServer || isGameOver || winnerPlayerIndex < 0)
             return;
 
-        if (!finishOrder.Contains(winnerPlayerIndex))
-            finishOrder.Insert(0, winnerPlayerIndex);
-
+        // Per Section 10 of Party Clash rules: if fewer than 2 players remain, cancel match without win reward
         int playerCount = NetworkTurnManager.Instance != null
             ? NetworkTurnManager.Instance.playerCount.Value
             : PlayerPrefs.GetInt("PlayerCount", 2);
 
+        finishOrder.Clear();
+        finishOrder.Add(winnerPlayerIndex);
         for (int i = 0; i < playerCount; i++)
+        {
             if (!finishOrder.Contains(i))
                 finishOrder.Add(i);
+        }
 
-        CompleteGame("Opponent disconnected");
+        CompleteGame("Match canceled (not enough players)", true);
     }
 
-    async void CompleteGame(string reason)
+    async void CompleteGame(string reason, bool isDrawOrCanceled)
     {
         if (isGameOver)
             return;
 
         isGameOver = true;
-        int playerCount = NetworkTurnManager.Instance != null ? NetworkTurnManager.Instance.playerCount.Value : PlayerPrefs.GetInt("PlayerCount", 2);
+        int playerCount = NetworkTurnManager.Instance != null
+            ? NetworkTurnManager.Instance.playerCount.Value
+            : PlayerPrefs.GetInt("PlayerCount", 2);
+
         for (int slot = 0; slot < playerCount; slot++)
-            if (!finishOrder.Contains(slot)) finishOrder.Add(slot);
-        int winnerPlayerIndex = finishOrder.Count > 0 ? finishOrder[0] : -1;
-        GameManager.Instance.SetState(GameState.GameOver);
-        ShowPendingResultClientRpc(GetRankingText());
+        {
+            if (!finishOrder.Contains(slot))
+                finishOrder.Add(slot);
+        }
+
+        int winnerPlayerIndex = (!isDrawOrCanceled && finishOrder.Count > 0) ? finishOrder[0] : -1;
+        if (GameManager.Instance != null)
+            GameManager.Instance.SetState(GameState.GameOver);
+
+        string rankingSummary = GetRankingText(isDrawOrCanceled, reason);
+        ShowPendingResultClientRpc(rankingSummary);
+
         string matchId = DatabaseManager.Instance != null ? DatabaseManager.Instance.CurrentMatchId : "";
+        int[] rankingToSend = isDrawOrCanceled ? Array.Empty<int>() : finishOrder.ToArray();
+
         bool saved = DatabaseManager.Instance != null &&
-            await DatabaseManager.Instance.FinishMatch(matchId, finishOrder.ToArray(), reason);
-        if (this == null || !IsSpawned) return;
-        ShowGameOverClientRpc(GetRankingText(), winnerPlayerIndex, saved ? matchId : "");
+            await DatabaseManager.Instance.FinishMatch(matchId, rankingToSend, reason);
+
+        if (this == null || !IsSpawned)
+            return;
+
+        ShowGameOverClientRpc(rankingSummary, winnerPlayerIndex, (!isDrawOrCanceled && saved) ? matchId : "");
     }
 
-    string GetRankingText()
+    string GetRankingText(bool isDrawOrCanceled, string reason)
     {
-        string text = "";
+        string header = isDrawOrCanceled
+            ? $"KẾT QUẢ: {reason}\n\n"
+            : "BẢNG XẾP HẠNG PARTY CLASH\n\n";
+
+        string text = header;
 
         for (int i = 0; i < finishOrder.Count; i++)
         {
-            string rank = i == finishOrder.Count - 1 ? "Lose" : (i + 1).ToString();
+            int slot = finishOrder[i];
+            string rank = isDrawOrCanceled ? "-" : (i == 0 ? "1st" : (i == 1 ? "2nd" : (i == 2 ? "3rd" : "4th")));
+            string pName = PlayerPrefs.GetString("TurnDisplayName_" + slot, ((PlayerColor)slot).ToString());
+            int score = boardManager != null ? boardManager.playerScores[slot] : 0;
+            int homes = boardManager != null ? boardManager.playerHomeCounts[slot] : 0;
+            int kicks = boardManager != null ? boardManager.playerKickCounts[slot] : 0;
 
-            text += rank + ": " + ((PlayerColor)finishOrder[i]).ToString() + "\n";
+            text += $"{rank}: {pName} ({(PlayerColor)slot}) — {score}đ [Về nhà: {homes} | Đá: {kicks}]\n";
         }
 
         return text;
@@ -123,18 +149,35 @@ public void CheckPlayerFinished(int playerIndex)
     [Rpc(SendTo.ClientsAndHost)]
     void ShowPendingResultClientRpc(string ranking)
     {
-        gameOverUI.ShowRanking(ranking);
-        gameOverUI.AppendMessage("\nSaving result...");
-        GameManager.Instance.SetState(GameState.GameOver);
+        if (gameOverUI != null)
+        {
+            gameOverUI.ShowRanking(ranking);
+            gameOverUI.AppendMessage("\nĐang lưu kết quả trận đấu...");
+        }
+        if (GameManager.Instance != null)
+            GameManager.Instance.SetState(GameState.GameOver);
     }
 
     [Rpc(SendTo.ClientsAndHost)]
     void ShowGameOverClientRpc(string ranking, int winnerPlayerIndex, string rewardId)
     {
-        gameOverUI.ShowRanking(ranking);
-        GameManager.Instance.SetState(GameState.GameOver);
-        if (!string.IsNullOrEmpty(rewardId)) AwardLocalWinner(winnerPlayerIndex, rewardId);
-        else gameOverUI.AppendMessage("\nCould not confirm the result with backend. No reward confirmation is available.");
+        if (gameOverUI != null)
+            gameOverUI.ShowRanking(ranking);
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.SetState(GameState.GameOver);
+
+        if (winnerPlayerIndex < 0)
+        {
+            if (gameOverUI != null)
+                gameOverUI.AppendMessage("\nTrận hòa hoặc bị hủy — không trao thưởng xu.");
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(rewardId))
+            AwardLocalWinner(winnerPlayerIndex, rewardId);
+        else if (gameOverUI != null)
+            gameOverUI.AppendMessage("\nKhông thể xác nhận phần thưởng với máy chủ.");
     }
 
     async void AwardLocalWinner(int winnerPlayerIndex, string rewardId)
@@ -149,6 +192,6 @@ public void CheckPlayerFinished(int playerIndex)
         );
 
         if (result.Success && gameOverUI != null)
-            gameOverUI.AppendMessage("\nVictory reward: +" + DatabaseManager.WinRewardCoins + " coins");
+            gameOverUI.AppendMessage("\nThưởng chiến thắng: +" + DatabaseManager.WinRewardCoins + " coins");
     }
 }

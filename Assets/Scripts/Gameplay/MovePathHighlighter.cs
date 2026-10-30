@@ -80,7 +80,7 @@ public class MovePathHighlighter : MonoBehaviour
         instance.Clear();
     }
 
-void Awake()
+    void Awake()
     {
         if (instance != null && instance != this)
         {
@@ -109,7 +109,7 @@ void Awake()
         return markerContainer;
     }
 
-Transform EnsureEditableAnchorContainer()
+    Transform EnsureEditableAnchorContainer()
     {
         if (editableAnchorContainer != null)
             return editableAnchorContainer;
@@ -136,7 +136,6 @@ Transform EnsureEditableAnchorContainer()
         foreach (Collider collider in anchors.GetComponentsInChildren<Collider>(true))
             collider.enabled = false;
     }
-
 
     public void Clear()
     {
@@ -187,14 +186,35 @@ Transform EnsureEditableAnchorContainer()
         List<Vector3> positions = new List<Vector3>();
         BoardManager board = piece.board;
 
+        if (board.pathPoints == null || board.pathPoints.Length == 0)
+            return positions;
+
         if (piece.isInStable)
         {
-            if (canSpawn &&
-                piece.startIndex >= 0 &&
-                piece.startIndex < board.pathPoints.Length &&
-                board.pathPoints[piece.startIndex] != null)
+            if (!canSpawn || step <= 0)
+                return positions;
+
+            int extraSteps = Mathf.Max(0, step - 1);
+            for (int i = 0; i <= extraSteps; i++)
             {
-                positions.Add(board.pathPoints[piece.startIndex].position);
+                int idx = (piece.startIndex + i) % board.pathPoints.Length;
+                if (idx >= 0 && board.pathPoints[idx] != null)
+                    positions.Add(board.pathPoints[idx].position);
+            }
+
+            int spawnLandingIdx = (piece.startIndex + extraSteps) % board.pathPoints.Length;
+            if (extraSteps > 0 && board.IsDashTile(spawnLandingIdx))
+            {
+                int dashTargetIdx = (spawnLandingIdx + DiceRuleUtility.DashTileSteps) % board.pathPoints.Length;
+                if (!board.HasOwnPieceAt(piece.playerIndex, dashTargetIdx))
+                {
+                    for (int d = 1; d <= DiceRuleUtility.DashTileSteps; d++)
+                    {
+                        int dIdx = (spawnLandingIdx + d) % board.pathPoints.Length;
+                        if (dIdx >= 0 && board.pathPoints[dIdx] != null)
+                            positions.Add(board.pathPoints[dIdx].position);
+                    }
+                }
             }
 
             return positions;
@@ -202,24 +222,11 @@ Transform EnsureEditableAnchorContainer()
 
         Transform[] homePath = board.GetHomePath(piece.playerIndex);
 
-        if (piece.isInHomePath)
-        {
-            int targetHomeIndex = piece.homeIndex + 1;
-
-            if (canClimbHome &&
-                homePath != null &&
-                targetHomeIndex >= 0 &&
-                targetHomeIndex < homePath.Length &&
-                homePath[targetHomeIndex] != null)
-            {
-                positions.Add(homePath[targetHomeIndex].position);
-            }
-
+        if (piece.isInHomePath || step <= 0)
             return positions;
-        }
 
-        if (step <= 0 || board.pathPoints == null || board.pathPoints.Length == 0)
-            return positions;
+        bool enteredHome = false;
+        int lastMainPathIndex = piece.currentIndex;
 
         for (int i = 1; i <= step; i++)
         {
@@ -228,21 +235,41 @@ Transform EnsureEditableAnchorContainer()
             if (!willEnterHome)
             {
                 int pathIndex = (piece.currentIndex + i) % board.pathPoints.Length;
+                lastMainPathIndex = pathIndex;
 
                 if (pathIndex >= 0 && board.pathPoints[pathIndex] != null)
                     positions.Add(board.pathPoints[pathIndex].position);
             }
             else
             {
+                enteredHome = true;
                 int stepsToHome = piece.maxLoopSteps - piece.stepsMoved;
-                int homeIndex = i - stepsToHome - 1;
+                int homeIndex = Mathf.Clamp(i - stepsToHome - 1, 0, homePath != null ? homePath.Length - 1 : 0);
 
                 if (homePath != null &&
                     homeIndex >= 0 &&
                     homeIndex < homePath.Length &&
                     homePath[homeIndex] != null)
                 {
-                    positions.Add(homePath[homeIndex].position);
+                    Vector3 homePos = homePath[homeIndex].position;
+                    if (positions.Count == 0 || positions[positions.Count - 1] != homePos)
+                        positions.Add(homePos);
+                }
+            }
+        }
+
+        if (!enteredHome &&
+            piece.stepsMoved + step + DiceRuleUtility.DashTileSteps <= piece.maxLoopSteps &&
+            board.IsDashTile(lastMainPathIndex))
+        {
+            int dashTargetIdx = (lastMainPathIndex + DiceRuleUtility.DashTileSteps) % board.pathPoints.Length;
+            if (!board.HasOwnPieceAt(piece.playerIndex, dashTargetIdx))
+            {
+                for (int d = 1; d <= DiceRuleUtility.DashTileSteps; d++)
+                {
+                    int dIdx = (lastMainPathIndex + d) % board.pathPoints.Length;
+                    if (dIdx >= 0 && board.pathPoints[dIdx] != null)
+                        positions.Add(board.pathPoints[dIdx].position);
                 }
             }
         }
@@ -250,7 +277,7 @@ Transform EnsureEditableAnchorContainer()
         return positions;
     }
 
-void CreateMarker(Vector3 boardPosition, bool isTarget, int playerIndex)
+    void CreateMarker(Vector3 boardPosition, bool isTarget, int playerIndex)
     {
         string markerKey = GetMarkerKey(boardPosition, isTarget);
 
@@ -330,12 +357,12 @@ void CreateMarker(Vector3 boardPosition, bool isTarget, int playerIndex)
             target.layer = ignoreRaycastLayer;
     }
 
-string GetMarkerKey(Vector3 position, bool isTarget)
+    string GetMarkerKey(Vector3 position, bool isTarget)
     {
         return (isTarget ? "T" : "S") + GetPositionKey(position);
     }
 
-string GetPositionKey(Vector3 position)
+    string GetPositionKey(Vector3 position)
     {
         int x = Mathf.RoundToInt(position.x * 100f);
         int y = Mathf.RoundToInt(position.y * 100f);
@@ -385,7 +412,6 @@ string GetPositionKey(Vector3 position)
 
         return null;
     }
-
 
     Material CreateMarkerMaterial(bool isTarget, int playerIndex, float alpha)
     {

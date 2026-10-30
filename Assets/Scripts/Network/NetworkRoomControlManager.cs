@@ -144,6 +144,14 @@ public class NetworkRoomControlManager : NetworkBehaviour
             return;
 
         RemoveActivePlayer(playerIndex);
+        if (boardManager != null && boardManager.allPieces != null)
+        {
+            foreach (PieceController piece in boardManager.allPieces)
+            {
+                if (piece != null && piece.playerIndex == playerIndex)
+                    piece.ReturnToStable(false);
+            }
+        }
         SetPlayerPiecesActiveRpc(playerIndex, false);
 
         if (playerIndex == 0)
@@ -241,13 +249,17 @@ public class NetworkRoomControlManager : NetworkBehaviour
     [Rpc(SendTo.ClientsAndHost)]
     void SetPlayerPiecesActiveRpc(int playerIndex, bool active)
     {
-        if (boardManager == null)
+        if (boardManager == null || boardManager.allPieces == null)
             return;
 
         foreach (PieceController piece in boardManager.allPieces)
         {
             if (piece != null && piece.playerIndex == playerIndex)
+            {
+                if (!active)
+                    piece.ReturnToStable(false);
                 piece.gameObject.SetActive(active);
+            }
         }
     }
 

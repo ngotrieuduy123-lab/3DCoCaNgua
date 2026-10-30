@@ -5,9 +5,9 @@ using UnityEngine.UI;
 
 public class DiceRollPresentation : MonoBehaviour
 {
-    const float ShakeDuration = 1.25f;
-    const float SettleDuration = 0.28f;
-    const float ResultHoldDuration = 0.55f;
+    const float ShakeDuration = 0.85f;
+    const float SettleDuration = 0.22f;
+    const float ResultHoldDuration = 0.40f;
 
     static DiceRollPresentation instance;
     static Sprite roundedSquareSprite;
@@ -141,10 +141,10 @@ public class DiceRollPresentation : MonoBehaviour
         }
 
         ResetDiceTransforms();
-        titleText.text = "KẾT QUẢ";
-        resultText.text = firstValue + "  +  " + secondValue + "  =  " + (firstValue + secondValue);
+        titleText.text = "2 HÀNH ĐỘNG ĐỘC LẬP";
+        resultText.text = $"Viên 1: [{firstValue}]   |   Viên 2: [{secondValue}]";
         yield return new WaitForSecondsRealtime(ResultHoldDuration);
-        yield return FadeCanvas(1f, 0f, 0.18f);
+        yield return FadeCanvas(1f, 0f, 0.16f);
 
         canvasGroup.blocksRaycasts = false;
         gameObject.SetActive(false);
@@ -210,13 +210,11 @@ public class DiceRollPresentation : MonoBehaviour
         glow.sprite = GetRoundedSquareSprite();
         glow.type = Image.Type.Sliced;
 
-        titleText = CreateText("Title", transform, 55f, FontStyles.Bold);
-        // Keep the heading fully inside the presentation panel instead of
-        // straddling its upper edge at narrower Game View resolutions.
+        titleText = CreateText("Title", transform, 52f, FontStyles.Bold);
         SetRect(titleText.rectTransform, new Vector2(0f, 258f), new Vector2(1000f, 90f));
         titleText.color = new Color(0.94f, 0.97f, 1f, 1f);
 
-        resultText = CreateText("Result", transform, 49f, FontStyles.Bold);
+        resultText = CreateText("Result", transform, 46f, FontStyles.Bold);
         SetRect(resultText.rectTransform, new Vector2(0f, -250f), new Vector2(900f, 90f));
         resultText.color = new Color(1f, 0.80f, 0.20f, 1f);
 

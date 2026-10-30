@@ -1,6 +1,6 @@
+using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
-using System.Collections;
 
 public class NetworkPieceMoveManager : NetworkBehaviour
 {
@@ -8,38 +8,48 @@ public class NetworkPieceMoveManager : NetworkBehaviour
     public TurnManager turnManager;
     public NetworkDiceManager networkDiceManager;
 
+    private bool isResolvingMove = false;
+
+    public bool IsResolvingMove => isResolvingMove;
+
     public void RequestMovePiece(int pieceId)
     {
-        RequestMovePieceRpc(pieceId);
+        TurnActionSlot slot = networkDiceManager != null
+            ? networkDiceManager.selectedActionSlot
+            : TurnActionSlot.Dice1;
+        RequestMovePiece(pieceId, slot);
+    }
+
+    public void RequestMovePiece(int pieceId, TurnActionSlot slot)
+    {
+        RequestMovePieceRpc(pieceId, (int)slot);
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    void RequestMovePieceRpc(int pieceId, RpcParams rpcParams = default)
+    void RequestMovePieceRpc(int pieceId, int actionSlotInt, RpcParams rpcParams = default)
     {
-        if (GameManager.Instance.IsState(GameState.GameOver))
+        if (isResolvingMove)
         {
+            Debug.Log("server reject move: another action is currently resolving");
             return;
         }
-        PieceController piece = GetPieceById(pieceId);
 
-        if (piece == null)
+        if (GameManager.Instance != null && GameManager.Instance.IsState(GameState.GameOver))
+            return;
+
+        PieceController piece = GetPieceById(pieceId);
+        if (piece == null || piece.isMoving)
         {
-            Debug.Log("piece not found");
+            Debug.Log("piece not found or already moving");
             return;
         }
 
         ulong senderClientId = rpcParams.Receive.SenderClientId;
         int senderPlayerIndex = NetworkPlayerIndexUtility.GetPlayerIndex(senderClientId);
 
-        if (senderPlayerIndex == -1)
+        if (senderPlayerIndex == -1 || piece.playerIndex != senderPlayerIndex)
         {
-            Debug.Log("sender has no player slot");
-            return;
-        }
-
-        if (piece.playerIndex != senderPlayerIndex)
-        {
-            Debug.Log("client cannot control this color");
+            Debug.Log("client cannot control this piece");
             return;
         }
 
@@ -50,100 +60,73 @@ public class NetworkPieceMoveManager : NetworkBehaviour
             return;
         }
 
-        if (piece.playerIndex != NetworkTurnManager.Instance.currentPlayerIndex.Value)
+        if (NetworkTurnManager.Instance == null ||
+            piece.playerIndex != NetworkTurnManager.Instance.currentPlayerIndex.Value)
         {
             Debug.Log("not network current player");
             return;
         }
 
-        int moveStep = networkDiceManager.totalValue.Value;
+        TurnActionSlot slot = (TurnActionSlot)actionSlotInt;
+        if (slot == TurnActionSlot.None)
+        {
+            if (networkDiceManager.IsSlotPlayableForPlayer(senderPlayerIndex, TurnActionSlot.Dice1))
+                slot = TurnActionSlot.Dice1;
+            else if (networkDiceManager.IsSlotPlayableForPlayer(senderPlayerIndex, TurnActionSlot.Dice2))
+                slot = TurnActionSlot.Dice2;
+            else if (networkDiceManager.IsSlotPlayableForPlayer(senderPlayerIndex, TurnActionSlot.Bonus3))
+                slot = TurnActionSlot.Bonus3;
+        }
+
+        int moveStep = networkDiceManager.GetStepForSlot(slot);
+        if (moveStep <= 0 || !boardManager.IsPieceActionValid(piece, slot, moveStep))
+        {
+            Debug.Log("server reject action: slot=" + slot + " step=" + moveStep);
+            return;
+        }
+
+        isResolvingMove = true;
+        if (GameManager.Instance != null)
+            GameManager.Instance.SetState(GameState.MovingPiece);
 
         if (piece.isInStable)
         {
-            if (!networkDiceManager.CanSpawnPiece() || !piece.CanSpawn())
-            {
-                Debug.Log("server reject spawn");
-                return;
-            }
-
-            piece.SpawnToStart();
-            EndNetworkTurnAfterMove();
-            return;
+            piece.SpawnAndMoveByDice(moveStep);
         }
-
-        if (piece.isInHomePath)
+        else
         {
-            if (!networkDiceManager.CanClimbHome() || !piece.CanClimbHome())
-            {
-                Debug.Log("server reject climb");
-                return;
-            }
-
-            piece.ClimbHomeOneStep();
-            EndNetworkTurnAfterMove();
-            return;
+            piece.SelectPiece();
+            piece.MoveByStep(moveStep);
         }
 
-        if (!piece.CanMove(moveStep))
-        {
-            Debug.Log("server reject move, step=" + moveStep);
-            return;
-        }
-
-        piece.SelectPiece();
-        piece.MoveByStep(moveStep);
-
-        StartCoroutine(WaitMoveThenEndTurn(piece));
+        StartCoroutine(WaitMoveThenConsumeSlot(piece, slot));
     }
 
     PieceController GetPieceById(int pieceId)
     {
+        if (boardManager == null || boardManager.allPieces == null)
+            return null;
+
         foreach (PieceController piece in boardManager.allPieces)
         {
-            if (piece.pieceId == pieceId)
+            if (piece != null && piece.pieceId == pieceId)
                 return piece;
         }
 
         return null;
     }
 
-void EndNetworkTurnAfterMove()
+    IEnumerator WaitMoveThenConsumeSlot(PieceController piece, TurnActionSlot slot)
     {
-        if (NetworkGameResultManager.Instance != null)
+        float elapsed = 0f;
+        while (piece != null && piece.isMoving && elapsed < 6f)
         {
-            NetworkGameResultManager.Instance.CheckPlayerFinished(
-                NetworkTurnManager.Instance.currentPlayerIndex.Value
-            );
-
-            if (NetworkGameResultManager.Instance.isGameOver)
-                return;
+            elapsed += Time.deltaTime;
+            yield return null;
         }
 
-        bool extraTurn =
-            networkDiceManager.IsDouble() &&
-            NetworkTurnManager.Instance.CanGetExtraTurn();
-
-        networkDiceManager.ResetNetworkDice();
-
-        if (extraTurn)
-        {
-            NetworkTurnManager.Instance.UseExtraTurn();
-        }
-        else
-        {
-            NetworkTurnManager.Instance.NextTurn();
-        }
-
-        GameManager.Instance.SetState(GameState.WaitingRoll);
+        isResolvingMove = false;
+        bool scoredKick = piece != null && piece.lastActionAwardedScoredKick;
+        networkDiceManager.ConsumeSlotAfterMoveServer(slot, scoredKick);
     }
-
-    IEnumerator WaitMoveThenEndTurn(PieceController piece)
-    {
-        yield return new WaitUntil(() => !piece.isMoving);
-
-        piece.CheckKickEnemy();
-
-        EndNetworkTurnAfterMove();
-    }
-
 }

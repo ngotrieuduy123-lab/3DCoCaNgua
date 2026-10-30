@@ -9,6 +9,7 @@ public class GameManager : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        Application.runInBackground = true;
     }
 
     public void SetState(GameState newState)

@@ -11,10 +11,21 @@ public class NetworkTurnManager : NetworkBehaviour
     public NetworkVariable<int> playerCount = new NetworkVariable<int>(2);
 
     public bool usedExtraTurn = false;
+    public int startingPlayerIndex = 0;
+    public int turnsCompletedInCurrentRound = 0;
+
+    private BoardManager cachedBoard;
 
     void Awake()
     {
         Instance = this;
+    }
+
+    BoardManager GetBoard()
+    {
+        if (cachedBoard == null)
+            cachedBoard = FindFirstObjectByType<BoardManager>();
+        return cachedBoard;
     }
 
     public override void OnNetworkSpawn()
@@ -23,11 +34,24 @@ public class NetworkTurnManager : NetworkBehaviour
 
         if (IsServer)
         {
-            int count = PlayerPrefs.GetInt("PlayerCount", 2);
-
+            int count = Mathf.Clamp(PlayerPrefs.GetInt("PlayerCount", 2), 2, 4);
             SetPlayerCount(count);
 
-            Debug.Log("Loaded PlayerCount = " + count);
+            startingPlayerIndex = Random.Range(0, count);
+            currentPlayerIndex.Value = startingPlayerIndex;
+            turnsCompletedInCurrentRound = 0;
+
+            BoardManager board = GetBoard();
+            if (board != null)
+            {
+                board.InitializePartyClashMatch(count);
+                board.OnPlayerTurnStarted(currentPlayerIndex.Value);
+            }
+
+            if (NetworkDiceManager.Instance != null)
+                NetworkDiceManager.Instance.SyncPartyClashBoardStateServer();
+
+            Debug.Log("Loaded PlayerCount = " + count + ", startingPlayer = " + startingPlayerIndex);
         }
 
         UpdateTurnUI(currentPlayerIndex.Value);
@@ -40,6 +64,9 @@ public class NetworkTurnManager : NetworkBehaviour
 
     void UpdateTurnUI(int playerIndex)
     {
+        if (gameplayUI == null)
+            return;
+
         gameplayUI.SetTurn((PlayerColor)playerIndex);
         gameplayUI.SetTurnDisplayName(playerIndex, GetTurnDisplayName(playerIndex));
 
@@ -50,8 +77,7 @@ public class NetworkTurnManager : NetworkBehaviour
             localPlayerIndex = NetworkPlayerIndexUtility.GetLocalPlayerIndex();
         }
 
-        if (gameplayUI != null)
-            gameplayUI.SetLocalPlayer(localPlayerIndex);
+        gameplayUI.SetLocalPlayer(localPlayerIndex);
 
         bool playerActive =
             NetworkRoomControlManager.Instance == null ||
@@ -59,11 +85,11 @@ public class NetworkTurnManager : NetworkBehaviour
 
         if (localPlayerIndex == playerIndex && playerActive)
         {
-            gameplayUI.SetMessage("Your turn");
+            gameplayUI.SetMessage("Lượt của bạn! Bấm Gieo Xúc Xắc");
         }
         else
         {
-            gameplayUI.SetMessage("Waiting for " + (PlayerColor)playerIndex);
+            gameplayUI.SetMessage("Đang chờ " + GetTurnDisplayName(playerIndex));
         }
 
         Debug.Log("Network turn: " + (PlayerColor)playerIndex);
@@ -87,27 +113,46 @@ public class NetworkTurnManager : NetworkBehaviour
         usedExtraTurn = false;
         if (!IsServer) return;
 
+        if (GameManager.Instance != null && GameManager.Instance.IsState(GameState.GameOver))
+            return;
+
         if (NetworkDiceManager.Instance != null)
         {
             NetworkDiceManager.Instance.ResetNetworkDice();
         }
 
-        int count = Mathf.Max(1, playerCount.Value);
+        BoardManager board = GetBoard();
+        int count = Mathf.Max(2, playerCount.Value);
+        int activeParticipantCount = CountActiveParticipants(count);
+
+        turnsCompletedInCurrentRound++;
+
+        // When every active player in the room has taken 1 turn in this round, we reach the round boundary
+        if (turnsCompletedInCurrentRound >= Mathf.Max(1, activeParticipantCount))
+        {
+            turnsCompletedInCurrentRound = 0;
+
+            if (TurnTimerManager.Instance != null && TurnTimerManager.Instance.isFinalRound.Value)
+            {
+                if (NetworkGameResultManager.Instance != null)
+                    NetworkGameResultManager.Instance.CompletePartyClashMatchServer("Match timer completed");
+                return;
+            }
+
+            if (board != null)
+                board.AdvanceRoundAndEvents(count);
+        }
+
         int nextPlayer = currentPlayerIndex.Value;
 
         for (int i = 0; i < count; i++)
         {
-            nextPlayer++;
-
-            if (nextPlayer >= count)
-                nextPlayer = 0;
+            nextPlayer = (nextPlayer + 1) % count;
 
             bool connected = NetworkPlayerSlotManager.Instance == null ||
                 NetworkPlayerSlotManager.Instance.IsPlayerConnected(nextPlayer);
             bool active = NetworkRoomControlManager.Instance == null ||
                 NetworkRoomControlManager.Instance.IsPlayerActive(nextPlayer);
-
-            Debug.Log("Check next player " + nextPlayer + " connected=" + connected + " active=" + active);
 
             if (connected && active)
             {
@@ -115,30 +160,55 @@ public class NetworkTurnManager : NetworkBehaviour
                 break;
             }
         }
+
+        if (board != null)
+            board.OnPlayerTurnStarted(currentPlayerIndex.Value);
+
+        if (NetworkDiceManager.Instance != null)
+            NetworkDiceManager.Instance.SyncPartyClashBoardStateServer();
+
         if (TurnTimerManager.Instance != null)
         {
             TurnTimerManager.Instance.ResetTimer();
         }
 
-        GameManager.Instance.SetState(GameState.WaitingRoll);
+        if (GameManager.Instance != null)
+            GameManager.Instance.SetState(GameState.WaitingRoll);
 
-        Debug.Log("Next turn after skip = " + currentPlayerIndex.Value);
+        Debug.Log("Next turn = " + currentPlayerIndex.Value);
     }
+
+    int CountActiveParticipants(int count)
+    {
+        int activeTotal = 0;
+        for (int i = 0; i < count; i++)
+        {
+            bool connected = NetworkPlayerSlotManager.Instance == null ||
+                NetworkPlayerSlotManager.Instance.IsPlayerConnected(i);
+            bool active = NetworkRoomControlManager.Instance == null ||
+                NetworkRoomControlManager.Instance.IsPlayerActive(i);
+            if (connected && active)
+                activeTotal++;
+        }
+
+        return Mathf.Max(1, activeTotal);
+    }
+
     public bool CanGetExtraTurn()
     {
-        return !usedExtraTurn;
+        return false;
     }
 
     public void UseExtraTurn()
     {
         usedExtraTurn = true;
-        Debug.Log("network extra turn");
     }
 
     public void ResetExtraTurn()
     {
         usedExtraTurn = false;
     }
+
     public void SetPlayerCount(int count)
     {
         if (!IsServer) return;
