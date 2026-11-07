@@ -94,6 +94,13 @@ public class NetworkTurnManager : NetworkBehaviour
 
         Debug.Log("Network turn: " + (PlayerColor)playerIndex);
 
+        if (IsServer)
+        {
+            string pName = GetTurnDisplayName(playerIndex);
+            string colorName = ((PlayerColor)playerIndex).ToString();
+            GameLogBridge.Send($"[LƯỢT CHƠI - ONLINE] >>> Đến lượt người chơi: {pName} (Quân: {colorName}) - Hãy gieo xúc xắc!", "TURN_START");
+        }
+
         if (NetworkDiceManager.Instance != null)
             NetworkDiceManager.Instance.RefreshHighlights();
     }

@@ -111,6 +111,11 @@ public class NetworkDiceManager : NetworkBehaviour
         int d1 = Random.Range(1, 7);
         int d2 = Random.Range(1, 7);
 
+        int pIndex = NetworkTurnManager.Instance != null ? NetworkTurnManager.Instance.currentPlayerIndex.Value : 0;
+        string pName = NetworkTurnManager.Instance != null ? NetworkTurnManager.Instance.GetTurnDisplayName(pIndex) : "Player";
+        string pColor = ((PlayerColor)pIndex).ToString();
+        GameLogBridge.Send($"[XÚC XẮC - ONLINE] Người chơi {pName} ({pColor}) đang gieo xúc xắc...", "DICE_ROLLING");
+
         if (DatabaseManager.Instance != null && NetworkTurnManager.Instance != null)
             DatabaseManager.Instance.RecordDiceRoll(NetworkTurnManager.Instance.currentPlayerIndex.Value, d1, d2);
 
@@ -130,6 +135,11 @@ public class NetworkDiceManager : NetworkBehaviour
         dice1Value.Value = d1;
         dice2Value.Value = d2;
         totalValue.Value = d1 + d2;
+
+        string moveOptions = DiceRuleUtility.IsDouble(d1, d2)
+            ? $"gieo được CẶP ĐÔI [{d1} & {d2}]! -> ĐƯỢC XUẤT QUÂN HOẶC ĐI TIẾP {d1 + d2} BƯỚC"
+            : $"gieo được [{d1} & {d2}] (Tổng: {d1 + d2}) -> LƯỢT ĐI: Có thể đi xúc xắc 1 ({d1} bước), xúc xắc 2 ({d2} bước) hoặc tổng ({d1 + d2} bước)";
+        GameLogBridge.Send($"[KẾT QUẢ ROLL - ONLINE] {pName} ({pColor}) {moveOptions}", "DICE_RESULT");
 
         Debug.Log("Network Party Clash dice: " + d1 + " & " + d2);
         EvaluateRemainingActionsServer(true);

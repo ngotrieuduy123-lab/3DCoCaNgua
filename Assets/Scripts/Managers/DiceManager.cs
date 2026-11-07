@@ -56,6 +56,11 @@ public class DiceManager : MonoBehaviour
         int firstValue = Random.Range(1, 7);
         int secondValue = Random.Range(1, 7);
 
+        int pIndex = turnManager != null ? turnManager.currentPlayerIndex : 0;
+        string pName = turnManager != null ? turnManager.GetTurnDisplayName(pIndex) : "Player";
+        string pColor = ((PlayerColor)pIndex).ToString();
+        GameLogBridge.Send($"[XÚC XẮC] Người chơi {pName} ({pColor}) đang gieo xúc xắc...", "DICE_ROLLING");
+
         if (SoundManager.Instance != null)
             SoundManager.Instance.PlayDice();
 
@@ -74,6 +79,11 @@ public class DiceManager : MonoBehaviour
 
         Debug.Log("Party Clash dice: " + firstValue + " & " + secondValue);
         gameplayUI.SetDice(dice1.value, dice2.value, totalValue);
+
+        string moveOptions = DiceRuleUtility.IsDouble(firstValue, secondValue)
+            ? $"gieo được CẶP ĐÔI [{firstValue} & {secondValue}]! -> ĐƯỢC XUẤT QUÂN HOẶC ĐI TIẾP {totalValue} BƯỚC"
+            : $"gieo được [{firstValue} & {secondValue}] (Tổng: {totalValue}) -> LƯỢT ĐI: Có thể đi xúc xắc 1 ({firstValue} bước), xúc xắc 2 ({secondValue} bước) hoặc tổng ({totalValue} bước)";
+        GameLogBridge.Send($"[KẾT QUẢ ROLL] {pName} ({pColor}) {moveOptions}", "DICE_RESULT");
 
         isRolling = false;
         EvaluateRemainingActionsOrEndTurn();

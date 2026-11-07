@@ -137,6 +137,23 @@ public class DatabaseManager : MonoBehaviour
     }
     public bool CurrentPlayerOwnsSkin(string skinId) => CurrentPlayer != null && (skinId == SkinCatalog.DefaultSkinId || CurrentPlayer.OwnedSkinIds.Contains(skinId));
 
+    public async void SendGameLog(string message, string eventType = "GAMEPLAY")
+    {
+        if (TcpBroadcastClient.Instance != null && TcpBroadcastClient.Instance.IsConnected)
+        {
+            TcpBroadcastClient.Instance.SendGameEventLog(message, eventType);
+        }
+        else
+        {
+            try
+            {
+                string escaped = message.Replace("\"", "'").Replace("\n", " ").Replace("\r", "");
+                await Send("/api/game/log", "POST", $"{{\"message\":\"{escaped}\",\"eventType\":\"{eventType}\"}}");
+            }
+            catch { }
+        }
+    }
+
     public async Task<bool> RegisterRoom(string relayCode, bool host)
     {
         try

@@ -118,6 +118,25 @@ public class TcpBroadcastClient : MonoBehaviour
         }
     }
 
+    public bool IsConnected => tcpClient != null && tcpClient.Connected && networkStream != null;
+
+    public void SendGameEventLog(string message, string eventType = "GAMEPLAY")
+    {
+        if (!IsConnected) return;
+
+        try
+        {
+            string escaped = message.Replace("\"", "'").Replace("\n", " ").Replace("\r", "");
+            string json = $"{{\"action\":\"GAME_LOG\",\"eventType\":\"{eventType}\",\"message\":\"{escaped}\"}}\n";
+            byte[] bytes = Encoding.UTF8.GetBytes(json);
+            networkStream.Write(bytes, 0, bytes.Length);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[TcpBroadcastClient] Error sending game log: {ex.Message}");
+        }
+    }
+
     public void SendPurchase(string itemId, string fishName, double price, string playerId)
     {
         if (tcpClient == null || !tcpClient.Connected || networkStream == null)

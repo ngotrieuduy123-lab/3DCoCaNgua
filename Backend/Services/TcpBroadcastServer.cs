@@ -21,6 +21,8 @@ public class StateObject
 public class PurchaseMessage
 {
     public string? action { get; set; }
+    public string? eventType { get; set; }
+    public string? message { get; set; }
     public string? skinKey { get; set; }
     public string? skinName { get; set; }
     public string? itemId { get; set; } // fallback
@@ -169,9 +171,20 @@ public class TcpBroadcastServer : BackgroundService
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var message = JsonSerializer.Deserialize<PurchaseMessage>(jsonLine, options);
 
-            if (message != null && string.Equals(message.action, "PURCHASE", StringComparison.OrdinalIgnoreCase))
+            if (message != null)
             {
-                await ProcessPurchaseAsync(senderState, message);
+                if (string.Equals(message.action, "GAME_LOG", StringComparison.OrdinalIgnoreCase))
+                {
+                    string logMsg = message.message ?? "";
+                    WebLogCollector.AddLog(LogLevel.Information, "GamePlay", logMsg);
+                    Console.WriteLine($"[GamePlay LiveLog] {logMsg}");
+                    return;
+                }
+
+                if (string.Equals(message.action, "PURCHASE", StringComparison.OrdinalIgnoreCase))
+                {
+                    await ProcessPurchaseAsync(senderState, message);
+                }
             }
         }
         catch (Exception ex)

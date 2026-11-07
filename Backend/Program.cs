@@ -150,6 +150,18 @@ app.MapRazorPages();
 // Health Check
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", timeUtc = DateTime.UtcNow }));
 
+// Ephemeral Live Game Log Endpoint (Chỉ stream log thời gian thực, KHÔNG LƯU VÀO DB)
+app.MapPost("/api/game/log", (GameLogDto body) =>
+{
+    string msg = body.message ?? "";
+    WebLogCollector.AddLog(LogLevel.Information, "GamePlay", msg);
+    Console.WriteLine($"[GamePlay LiveLog] {msg}");
+    return Results.Ok(new { status = "Logged" });
+})
+.AllowAnonymous()
+.WithSummary("Ephemeral live game log streaming (No DB save)")
+.WithTags("Live Logs");
+
 #region PART 1: Authentication Endpoints
 app.MapPost("/api/auth/login", async (LoginDto body, IUserRepository userRepo, IJwtService jwtService, IActionLogRepository actionLogRepo) =>
 {
@@ -913,6 +925,7 @@ static object ToPlayerDto(User u) => DtoHelper.ToPlayerDto(u);
 await app.RunAsync();
 
 // DTO Records
+public record GameLogDto(string? message, string? eventType);
 public record LoginDto(string username, string password);
 public record RegisterDto(string username, string password, string? displayName);
 public record ArenaInputDto(string arenaName, string? arenaDescription, string? theme);

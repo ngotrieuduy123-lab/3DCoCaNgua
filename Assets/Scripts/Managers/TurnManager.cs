@@ -63,6 +63,7 @@ public class TurnManager : MonoBehaviour
         }
 
         Debug.Log("Player " + currentPlayerIndex + " turn");
+        LogCurrentTurn();
     }
 
     void Update()
@@ -158,6 +159,15 @@ public class TurnManager : MonoBehaviour
             if (board != null)
                 gameplayUI.RefreshPartyClashHud(board, Mathf.CeilToInt(offlineMatchRemaining), isFinalRound);
         }
+
+        LogCurrentTurn();
+    }
+
+    public void LogCurrentTurn()
+    {
+        string pName = GetTurnDisplayName(currentPlayerIndex);
+        string colorName = ((PlayerColor)currentPlayerIndex).ToString();
+        GameLogBridge.Send($"[LƯỢT CHƠI] >>> Đến lượt người chơi: {pName} (Quân: {colorName}) - Đang chờ gieo xúc xắc...", "TURN_START");
     }
 
     void EndPartyClashMatchOffline()
