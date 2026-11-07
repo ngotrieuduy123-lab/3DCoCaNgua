@@ -1,0 +1,20 @@
+[
+  {
+    "username": "admin",
+    "password": "$2a$11$N.98fle566A279J350tkL.rn7BO.DqJk59q5Kz960L4LomjE5Z0yq",
+    "role": "ADMIN",
+    "fullName": "Administrator"
+  },
+  {
+    "username": "player1",
+    "password": "$2a$11$N.98fle566A279J350tkL.rn7BO.DqJk59q5Kz960L4LomjE5Z0yq",
+    "role": "PLAYER",
+    "fullName": "Player One"
+  },
+  {
+    "username": "player2",
+    "password": "$2a$11$N.98fle566A279J350tkL.rn7BO.DqJk59q5Kz960L4LomjE5Z0yq",
+    "role": "PLAYER",
+    "fullName": "Player Two"
+  }
+]

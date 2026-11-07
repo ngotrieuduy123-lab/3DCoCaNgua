@@ -18,6 +18,7 @@
 .vs/
 .vscode/
 *.csproj
+!Backend*/**/*.csproj
 *.unityproj
 *.sln
 *.slnx
@@ -51,7 +52,9 @@ steam_appid.txt
 /Backend/*.log
 /Backend.Tests/*.log
 !/Backend/*.csproj
+!Backend*/**/*.csproj
 !/Backend.Tests/*.csproj
+!Backend*/**/*.csproj
 
 # Asset recovery and generated plugin data
 Assets/_Recovery/

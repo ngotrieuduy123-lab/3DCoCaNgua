@@ -14,7 +14,7 @@ public class DatabaseManager : MonoBehaviour
     public const int WinRewardCoins = 1000;
     public static DatabaseManager Instance;
     [Header("Backend API")]
-    [SerializeField] private string backendUrl = "http://127.0.0.1:5080";
+    [SerializeField] private string backendUrl = "http://127.0.0.1:5001";
     public PlayerData CurrentPlayer { get; private set; }
     public string LastMessage { get; private set; }
     public bool IsConnected { get; private set; }
@@ -39,6 +39,12 @@ public class DatabaseManager : MonoBehaviour
         string configured = Environment.GetEnvironmentVariable("COCANGUA_BACKEND_URL");
         if (!string.IsNullOrWhiteSpace(configured)) backendUrl = configured;
         backendUrl = backendUrl.TrimEnd('/');
+        if (backendUrl.Contains(":5080")) backendUrl = backendUrl.Replace(":5080", ":5001");
+        if (FindFirstObjectByType<TcpBroadcastClient>() == null)
+        {
+            var tcpObj = new GameObject("TcpBroadcastClient");
+            tcpObj.AddComponent<TcpBroadcastClient>();
+        }
         PlayerPrefs.DeleteKey("CurrentMatchHistoryId");
         ConnectToDatabase();
     }
@@ -123,6 +129,8 @@ public class DatabaseManager : MonoBehaviour
             BackendSkin sale = Array.Find(AvailableSkins, skin => skin.id == skinId);
             var response = await Send("/api/game/skins/" + action, "POST", JsonUtility.ToJson(new SkinBody { skinId = skinId, expectedPrice = sale != null ? sale.price : -1 }));
             ApplyPlayer(response.player);
+            if (action == "purchase" && TcpBroadcastClient.Instance != null && CurrentPlayer != null)
+                TcpBroadcastClient.Instance.SendPurchase(skinId, sale != null ? sale.name : skinId, sale != null ? sale.price : 0, CurrentPlayer.Username);
             return new ShopResult(true, response.message, CurrentPlayer.Coins);
         }
         catch (Exception e) { LastMessage = e.Message; return new ShopResult(false, e.Message, CurrentPlayer != null ? CurrentPlayer.Coins : 0); }

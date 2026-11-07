@@ -1,0 +1,42 @@
+[
+  {
+    "id": "6ae8da2cd977f8641727bf80",
+    "skinKey": "default_horse",
+    "skinName": "Ngựa Gỗ Cổ Điển",
+    "skinDescription": "Quân cờ ngựa gỗ tiêu chuẩn được trang bị mặc định",
+    "price": 0,
+    "amount": 999,
+    "arenaId": "6ae8da2bd977f8641727bf7e",
+    "isAvailable": true
+  },
+  {
+    "id": "6ae8da2cd977f8641727bf81",
+    "skinKey": "gundam_unicorn",
+    "skinName": "Gundam Unicorn",
+    "skinDescription": "Chiến giáp Mobile Suit Unicorn với hiệu ứng ánh sáng phát quang",
+    "price": 5000,
+    "amount": 999,
+    "arenaId": "6ae8da2bd977f8641727bf7e",
+    "isAvailable": true
+  },
+  {
+    "id": "6ae8da2cd977f8641727bf82",
+    "skinKey": "odin_transformer",
+    "skinName": "Odin Biến Hình",
+    "skinDescription": "Chiến thần Odin có thể biến hình thành phi thuyền phản lực khi bay",
+    "price": 5000,
+    "amount": 999,
+    "arenaId": "6ae8da2bd977f8641727bf7e",
+    "isAvailable": true
+  },
+  {
+    "id": "6ae8da2cd977f8641727bf83",
+    "skinKey": "arya",
+    "skinName": "Hiệp Sĩ Arya",
+    "skinDescription": "Nữ chiến binh Arya dũng cảm với hoạt ảnh di chuyển linh hoạt",
+    "price": 5000,
+    "amount": 999,
+    "arenaId": "6ae8da2bd977f8641727bf7e",
+    "isAvailable": true
+  }
+]

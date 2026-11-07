@@ -1,6 +1,84 @@
 @page
 @model CoCaNgua.Server.Pages.IndexModel
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
-<!doctype html><html lang="vi"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="csrf-token" content="@Antiforgery.GetAndStoreTokens(HttpContext).RequestToken" /><title>Control Room · Cờ Cá Ngựa</title><link rel="stylesheet" href="/admin.css" /><script src="/admin.js" defer></script></head>
-<body><aside class="sidebar"><a class="brand" href="/"><span class="brand-mark">♞</span><span>Cờ Cá Ngựa<small>CONTROL ROOM</small></span></a><p class="nav-caption">VẬN HÀNH</p><nav aria-label="Quản trị"><button data-view="overview" class="active">◫ <span>Tổng quan</span></button><button data-view="players">♙ <span>Người chơi</span></button><button data-view="rooms">▦ <span>Phòng chơi</span></button><button data-view="matches">⚑ <span>Lịch sử trận</span></button><button data-view="rolls">⚄ <span>Xúc xắc</span></button><button data-view="transactions">⇄ <span>Giao dịch coin</span></button><button data-view="skins">♞ <span>Skin</span></button></nav><div class="sidebar-bottom"><span class="status-dot"></span> ASP.NET Core / MongoDB<form method="post" asp-page-handler="Logout"><button class="ghost" type="submit">Đăng xuất ↗</button></form></div></aside>
-<main class="workspace"><header><div><p class="eyebrow">CỜ CÁ NGỰA / QUẢN TRỊ</p><h1 id="page-title">Tổng quan</h1><p id="page-description" class="muted">Theo dõi hoạt động game và kết nối server.</p></div><div class="header-actions"><span id="sync-status" class="muted small" role="status">Đang kết nối…</span><button id="refresh" class="secondary">↻ Làm mới</button></div></header><div id="notice" role="status" hidden></div><section id="filters" class="filters" hidden></section><section id="content" aria-live="polite"><p>Đang tải dữ liệu…</p></section><footer id="pagination" hidden><button id="previous" class="secondary">← Trước</button><span id="page-number"></span><button id="next" class="secondary">Sau →</button></footer></main></body></html>
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="csrf-token" content="@Antiforgery.GetAndStoreTokens(HttpContext).RequestToken" />
+  <title>Control Room · Cờ Cá Ngựa</title>
+  <link rel="stylesheet" href="/admin.css" />
+  <script src="/admin.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-mark">♞</span><span>Cờ Cá Ngựa<small>CONTROL ROOM</small></span></a>
+    <p class="nav-caption">VẬN HÀNH</p>
+    <nav aria-label="Quản trị">
+      <button data-view="overview" class="active">◫ <span>Tổng quan</span></button>
+      <button data-view="logs">⌨ <span>Live Terminal</span></button>
+      <button data-view="players">♙ <span>Người chơi</span></button>
+      <button data-view="rooms">▦ <span>Phòng chơi</span></button>
+      <button data-view="matches">⚑ <span>Lịch sử trận</span></button>
+      <button data-view="rolls">⚄ <span>Xúc xắc</span></button>
+      <button data-view="transactions">⇄ <span>Giao dịch coin</span></button>
+      <button data-view="skins">♞ <span>Skin</span></button>
+    </nav>
+    <div class="sidebar-bottom">
+      <span class="status-dot"></span> ASP.NET Core &amp; TCP 7777
+      <form method="post" asp-page-handler="Logout"><button class="ghost" type="submit">Đăng xuất ↗</button></form>
+    </div>
+  </aside>
+
+  <main class="workspace">
+    <header>
+      <div>
+        <p class="eyebrow">CỜ CÁ NGỰA / QUẢN TRỊ</p>
+        <h1 id="page-title">Tổng quan</h1>
+        <p id="page-description" class="muted">Theo dõi hoạt động game và kết nối server.</p>
+      </div>
+      <div class="header-actions">
+        <span id="sync-status" class="muted small" role="status">Đang kết nối…</span>
+        <button id="refresh" class="secondary">↻ Làm mới</button>
+      </div>
+    </header>
+
+    <div id="notice" role="status" hidden></div>
+    <section id="filters" class="filters" hidden></section>
+    <section id="content" aria-live="polite"><p>Đang tải dữ liệu…</p></section>
+    <footer id="pagination" hidden>
+      <button id="previous" class="secondary">← Trước</button>
+      <span id="page-number"></span>
+      <button id="next" class="secondary">Sau →</button>
+    </footer>
+  </main>
+
+  <!-- Modal Edit Player -->
+  <div id="player-modal" class="modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Chỉnh sửa người chơi: <span id="modal-player-name"></span></h2>
+        <button id="modal-close" type="button" class="ghost">✕</button>
+      </div>
+      <form id="edit-player-form">
+        <input type="hidden" id="modal-player-id" />
+        <label>Tên hiển thị (FullName)<input type="text" id="modal-fullname" /></label>
+        <label>Số dư Coins<input type="number" id="modal-coins" min="0" max="10000000" required /></label>
+        <label>Skin đang trang bị
+          <select id="modal-equipped-skin"></select>
+        </label>
+        <div class="skins-picker">
+          <p class="small muted" style="margin-bottom: 6px;">Skin sở hữu (tích chọn để cấp skin cho player):</p>
+          <div id="modal-skins-list" class="skins-grid"></div>
+        </div>
+        <label class="checkbox-row" style="margin: 10px 0;"><input type="checkbox" id="modal-banned" /> Khóa tài khoản (Ban)</label>
+        <div class="modal-actions">
+          <button type="button" id="modal-cancel" class="secondary">Hủy</button>
+          <button type="submit">Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

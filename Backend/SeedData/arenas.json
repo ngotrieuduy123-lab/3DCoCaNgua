@@ -1,0 +1,16 @@
+[
+  {
+    "id": "6ae8da2bd977f8641727bf7e",
+    "arenaName": "Đấu trường Cờ Cá Ngựa Hoàng Gia",
+    "arenaDescription": "Bàn cờ truyền thống 4 màu kinh điển với chuồng và đường đua tiêu chuẩn",
+    "theme": "Classic",
+    "lastUpdatedUserID": "6ae8d7554d15230bceee5a45"
+  },
+  {
+    "id": "6ae8da2cd977f8641727bf7f",
+    "arenaName": "Đấu trường Không Gian Tương Lai",
+    "arenaDescription": "Bàn cờ vũ trụ phong cách Cyberpunk với hiệu ứng ánh sáng Neon",
+    "theme": "SciFi",
+    "lastUpdatedUserID": "6ae8d7554d15230bceee5a45"
+  }
+]
