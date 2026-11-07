@@ -102,30 +102,25 @@ Toàn bộ các thay đổi thuộc **Phase 1 (Core Gameplay + HUD + Network Syn
 
 ---
 
-## 3. Những Công Việc Cần Làm Tiếp Theo (Khi Chuyển Lên PC)
+## 3. Trạng Thái Phase 2 & Phase 3 (Đã Hoàn Tất & Đã Kiểm Thử Qua `unityMCP`)
 
-Khi mở dự án trên PC mới, bạn có thể đưa file `PARTY_CLASH_HANDOVER.md` này cho AI Assistant và tiếp tục triển khai các hạng mục **Phase 2 & Phase 3** sau:
-
-### 3.1. Tinh chỉnh Trải nghiệm Thị giác & 3D Board (Visual & UX Polish)
-- [ ] **Hiệu ứng Floating Combat Text (+1đ, +3đ, +4đ, +6đ):**
-  - Tạo chữ nổi 3D (`TextMeshPro` World Space bay lên và mờ dần) ngay tại vị trí quân cờ khi:
+- [x] **Tích hợp với kiến trúc GNS301 trên nhánh `Minh` (`GameLogBridge`, `TcpBroadcastClient`, `.NET 8 Backend`):**
+  - Sửa lỗi phạm vi truy cập `CS0122` của `GetTurnDisplayName(int)` trong [`TurnManager.cs`](file:///d:/ProjectUnity/3DCoCaNgua/Assets/Scripts/Managers/TurnManager.cs) và [`NetworkTurnManager.cs`](file:///d:/ProjectUnity/3DCoCaNgua/Assets/Scripts/Network/NetworkTurnManager.cs).
+  - Bổ sung gửi Live Log thời gian thực qua [`GameLogBridge.Send`](file:///d:/ProjectUnity/3DCoCaNgua/Assets/Scripts/Gameplay/GameLogBridge.cs) cho toàn bộ sự kiện Party Clash v0.2: `[KẾT QUẢ ROLL]`, `[CHECKPOINT ELITE]`, `[ĐÁ QUÂN - BOUNTY]`, `[Ô TĂNG TỐC]`, `[VỀ ĐÍCH THU ĐIỂM]`, `[BIẾN CỐ TOÀN BÀN]` để hiển thị trực tiếp lên **Web Admin Live Terminal (`http://localhost:5001/`)**.
+- [x] **Hiệu ứng Floating Combat Text 3D ([`Assets/Scripts/UI/FloatingScoreText.cs`](file:///d:/ProjectUnity/3DCoCaNgua/Assets/Scripts/UI/FloatingScoreText.cs)):**
+  - Chữ nổi 3D World Space tự động hướng về Camera (`Billboard`), phóng to đàn hồi và bay lên mờ dần ngay trên đầu quân cờ (đồng bộ qua RPC cho cả chế độ Online) khi:
     - Qua mốc Checkpoint bước 28 (`+1đ ELITE!`)
-    - Đá quân địch (`+1đ KICK!` hoặc `+3đ BOUNTY!`)
-    - Về chuồng thu điểm (`+4đ HOME!` / `+6đ DEEP HOME!`)
-- [ ] **Nâng cấp hiển thị trên bàn cờ 3D:**
-  - Đánh dấu trực quan **Mốc Checkpoint (bước 28)** của từng màu hoặc hiển thị icon nhỏ trên 4 **Ô Tăng Tốc (`7, 21, 35, 49`)** rõ nét hơn vòng LineRenderer hiện tại.
-  - Phân biệt màu sắc trực quan giữa **Ô Đích Nông (bậc 1–3: +4đ)** và **Ô Đích Sâu (bậc 4–6: +6đ)** trên đường về đích của mỗi màu.
-- [ ] **Cải thiện bố cục HUD (`GameplayUI.cs`):**
-  - Kiểm tra độ co giãn (`CanvasScaler`) trên các tỷ lệ màn hình khác nhau (16:9, 16:10, 21:9) để các bảng `TurnHudPopup`, `PartyClashActionSlots` và `PartyClashScoreboardPopup` không đè lên các nút điều khiển góc màn hình.
-
-### 3.2. Kiểm thử Chuyên Sâu Chế Độ Multiplayer (Netcode for GameObjects)
-- [ ] **Test thực tế Host + Client (2 – 4 người chơi):**
-  - Kiểm tra luồng chọn `[Viên 1]` / `[Viên 2]` / `[Combo +3]` từ phía Client (không phải Host) qua `NetworkDiceManager` và `NetworkPieceMoveManager`.
-  - Kiểm tra xử lý khi 1 người chơi thoát phòng giữa trận (`NetworkRoomControlManager.HandleOpponentLeftMatch`) xem bảng điểm và vòng lượt (`startingPlayerIndex`) có chuyển mượt mà không.
-  - Kiểm tra màn hình tổng kết `GameOverUI` khi đồng hồ 10 phút kết thúc ở chế độ Online (`NetworkGameResultManager`).
-
-### 3.3. Đồng bộ Backend Server (Nếu sử dụng `Backend/CoCaNgua.Server.csproj`)
-- [ ] Thư mục `Backend/` hiện đang target `.NET 10.0` (`net10.0`). Nếu PC của bạn dùng `.NET 8.0` hoặc `.NET 9.0`, cần chỉnh `<TargetFramework>` trong `Backend/CoCaNgua.Server.csproj` hoặc cài SDK tương ứng, và cập nhật model lưu lịch sử kết quả trận đấu nếu Backend có lưu điểm số (`playerScores`, `playerKickCounts`, `playerHomeCounts`).
+    - Đá quân địch (`+1đ ĐÁ HẠ! [COMBO]` / `+3đ SĂN THƯỞNG! [COMBO]`)
+    - Đạp Ô Tăng Tốc (`TĂNG TỐC +3!`)
+    - Về chuồng thu điểm (`+4đ VỀ ĐÍCH!` / `+6đ ĐÍCH SÂU!`)
+- [x] **Nâng cấp hiển thị trực quan trên bàn cờ 3D ([`BoardManager.CreateDashTileVisuals`](file:///d:/ProjectUnity/3DCoCaNgua/Assets/Scripts/Managers/BoardManager.cs#L682-L872)):**
+  - **4 Ô Tăng Tốc (`7, 21, 35, 49`):** Vòng tròn đôi + hình thoi phát sáng màu Cyan kèm nhãn 3D `"+3"` nằm phẳng trên mặt ô.
+  - **4 Cổng Khởi Hành / Trạm Kiểm Soát (`0, 14, 28, 42`):** Vòng bát giác Vàng Kim đánh dấu mốc tiến hóa Quân Tinh Nhuệ (`stepsMoved = 28`).
+  - **Phân tầng Đường Về Đích (`homePaths`):** Vòng Ngọc Lục Bảo kèm nhãn `"4đ"` cho bậc nông (`1–3`) và vòng Vàng Hoàng Kim kèm nhãn `"6đ"` cho bậc sâu (`4–6`).
+- [x] **Bố cục HUD không chồng lấp ([`GameplayUI.CreateScoreboardPopup`](file:///d:/ProjectUnity/3DCoCaNgua/Assets/Scripts/UI/GameplayUI.cs#L487-L509)):**
+  - Dời `PartyClashScoreboardPopup` về cột bên trái (`pos = (14, -228)`) ngay dưới thanh nút `[Viên 1] [Viên 2] [Combo +3]`, hoàn toàn không che `RoomControlPanel` (`OutRoomButton`, `StopRoomButton`) ở góc phải trên.
+- [x] **Đồng bộ Timer & Multiplayer ([`TurnTimerManager.cs`](file:///d:/ProjectUnity/3DCoCaNgua/Assets/Scripts/Managers/TurnTimerManager.cs), [`NetworkDiceManager.cs`](file:///d:/ProjectUnity/3DCoCaNgua/Assets/Scripts/Network/NetworkDiceManager.cs)):**
+  - Tự động làm mới `TurnTimerManager.ResetTimer()` sau mỗi hành động xúc xắc ở chế độ Online và gọi `ResetNetworkDice()` khi hết giờ lượt để không làm kẹt lượt người chơi kế tiếp.
 
 ---
 

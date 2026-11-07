@@ -136,9 +136,7 @@ public class NetworkDiceManager : NetworkBehaviour
         dice2Value.Value = d2;
         totalValue.Value = d1 + d2;
 
-        string moveOptions = DiceRuleUtility.IsDouble(d1, d2)
-            ? $"gieo được CẶP ĐÔI [{d1} & {d2}]! -> ĐƯỢC XUẤT QUÂN HOẶC ĐI TIẾP {d1 + d2} BƯỚC"
-            : $"gieo được [{d1} & {d2}] (Tổng: {d1 + d2}) -> LƯỢT ĐI: Có thể đi xúc xắc 1 ({d1} bước), xúc xắc 2 ({d2} bước) hoặc tổng ({d1 + d2} bước)";
+        string moveOptions = $"gieo được 2 hành động độc lập: [Viên 1: {d1}] & [Viên 2: {d2}] -> Có thể xuất quân hoặc đi 2 nước tách biệt!";
         GameLogBridge.Send($"[KẾT QUẢ ROLL - ONLINE] {pName} ({pColor}) {moveOptions}", "DICE_RESULT");
 
         Debug.Log("Network Party Clash dice: " + d1 + " & " + d2);
@@ -305,6 +303,9 @@ public class NetworkDiceManager : NetworkBehaviour
             TurnActionSlot nextSlot = canUseD1
                 ? TurnActionSlot.Dice1
                 : (canUseD2 ? TurnActionSlot.Dice2 : TurnActionSlot.Bonus3);
+
+            if (TurnTimerManager.Instance != null)
+                TurnTimerManager.Instance.ResetTimer();
 
             GameManager.Instance.SetState(GameState.WaitingChoosePiece);
             NotifyActiveSlotClientRpc((int)nextSlot);

@@ -259,12 +259,12 @@ public class TcpBroadcastClient : MonoBehaviour
     [Serializable]
     private class BroadcastPayload
     {
-        public string action;
-        public string playerId;
-        public string skinKey;
-        public string skinName;
-        public string fishName;
-        public double price;
-        public string message;
+        public string action = "";
+        public string playerId = "";
+        public string skinKey = "";
+        public string skinName = "";
+        public string fishName = "";
+        public double price = 0;
+        public string message = "";
     }
 }

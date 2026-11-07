@@ -43,6 +43,7 @@ public class PieceController : NetworkBehaviour
 
     private Vector3 stablePosition;
     private Vector3 originalScale;
+    public Vector3 StablePosition => stablePosition;
     private bool originalTransformCached = false;
     private Coroutine highlightRoutine;
     private Coroutine remoteSkinTransitionRoutine;
@@ -235,8 +236,34 @@ public class PieceController : NetworkBehaviour
             if (enemyAtStart != null)
             {
                 PlayKickSound();
-                enemyAtStart.ReturnToStable(false);
                 board.lastFeedMessage = $"{(PlayerColor)playerIndex} xuất quân đẩy {(PlayerColor)enemyAtStart.playerIndex} về chuồng (0đ)";
+                SpawnFloatingPopup("ĐẨY LÙI (0đ)", new Color(0.88f, 0.90f, 0.96f, 1f), 0.95f);
+                GameLogBridge.Send($"[XUẤT QUÂN ĐẨY LÙI] {(PlayerColor)playerIndex} xuất quân với [1] đẩy {(PlayerColor)enemyAtStart.playerIndex} về chuồng (0đ, không Combo)", "SPAWN_PUSH");
+
+                if (VietnameseFloorAtmosphere.Instance != null)
+                {
+                    VietnameseFloorAtmosphere.Instance.TriggerKickReaction(playerIndex, enemyAtStart.playerIndex);
+                }
+
+                if (NetworkManager.Singleton != null &&
+                    NetworkManager.Singleton.IsListening &&
+                    IsSpawned &&
+                    IsServer)
+                {
+                    PlayKickCutsceneClientRpc(pieceId, enemyAtStart.pieceId, 0, enemyAtStart.StablePosition);
+                }
+
+                AnimeKickCutscene cutscene = AnimeKickCutscene.EnsureCreated();
+                if (cutscene != null)
+                {
+                    yield return cutscene.PlayClashRoutine(this, enemyAtStart, 0, enemyAtStart.StablePosition);
+                }
+
+                enemyAtStart.ReturnToStable(false);
+            }
+            else
+            {
+                SpawnFloatingPopup("XUẤT QUÂN!", new Color(0.75f, 0.92f, 1f, 1f), 0.90f);
             }
 
             yield return new WaitForSeconds(StepSettleDelay);
@@ -353,7 +380,9 @@ public class PieceController : NetworkBehaviour
                     if (stepsMoved >= DiceRuleUtility.CheckpointStep && !hasPassedCheckpoint)
                     {
                         hasPassedCheckpoint = true;
-                        lastActionPointsAwarded += board.AwardCheckpointScore(playerIndex);
+                        int chkPts = board.AwardCheckpointScore(playerIndex);
+                        lastActionPointsAwarded += chkPts;
+                        SpawnFloatingPopup($"+{chkPts}đ ELITE!", new Color(1f, 0.84f, 0.18f, 1f), 1.05f);
                     }
                 }
             }
@@ -387,6 +416,8 @@ public class PieceController : NetworkBehaviour
                 if (!board.HasOwnPieceAt(playerIndex, dashTargetIndex))
                 {
                     board.lastFeedMessage = $"{(PlayerColor)playerIndex} đạp Ô Tăng Tốc (+{dashSteps} bước)!";
+                    SpawnFloatingPopup($"TĂNG TỐC +{dashSteps}!", new Color(0.18f, 0.96f, 1f, 1f), 1.08f);
+                    GameLogBridge.Send($"[Ô TĂNG TỐC] Quân của {(PlayerColor)playerIndex} đạp trúng Ô Tăng Tốc (ô {currentIndex}) -> Trượt thêm +{dashSteps} bước!", "DASH_TILE");
 
                     for (int d = 0; d < dashSteps; d++)
                     {
@@ -396,7 +427,9 @@ public class PieceController : NetworkBehaviour
                         if (stepsMoved >= DiceRuleUtility.CheckpointStep && !hasPassedCheckpoint)
                         {
                             hasPassedCheckpoint = true;
-                            lastActionPointsAwarded += board.AwardCheckpointScore(playerIndex);
+                            int chkPts = board.AwardCheckpointScore(playerIndex);
+                            lastActionPointsAwarded += chkPts;
+                            SpawnFloatingPopup($"+{chkPts}đ ELITE!", new Color(1f, 0.84f, 0.18f, 1f), 1.05f);
                         }
 
                         Vector3 dashPos = board.pathPoints[currentIndex].position;
@@ -418,6 +451,8 @@ public class PieceController : NetworkBehaviour
             PlayFinishSound();
             int cashInPts = board.AwardHomeCashInScore(playerIndex, homeIndex);
             lastActionPointsAwarded += cashInPts;
+            string homeTierPopup = homeIndex >= 3 ? $"+{cashInPts}đ ĐÍCH SÂU!" : $"+{cashInPts}đ VỀ ĐÍCH!";
+            SpawnFloatingPopup(homeTierPopup, new Color(0.24f, 1f, 0.54f, 1f), 1.22f);
 
             SyncStateToClients();
             yield return new WaitForSeconds(0.22f);
@@ -427,7 +462,7 @@ public class PieceController : NetworkBehaviour
             yield break;
         }
 
-        ResolveLandingKick();
+        yield return ResolveLandingKickRoutine();
         transform.localScale = originalScale;
         isMoving = false;
         isSelected = false;
@@ -461,14 +496,14 @@ public class PieceController : NetworkBehaviour
         yield return new WaitForSeconds(StepSettleDelay);
     }
 
-    void ResolveLandingKick()
+    IEnumerator ResolveLandingKickRoutine()
     {
         if (isInHomePath || isInStable || board == null)
-            return;
+            yield break;
 
         PieceController enemy = board.GetEnemyPieceAt(playerIndex, currentIndex);
         if (enemy == null)
-            return;
+            yield break;
 
         Debug.Log("kick enemy: " + enemy.name);
         PlayKickSound();
@@ -476,13 +511,91 @@ public class PieceController : NetworkBehaviour
         int kickPoints = board.AwardKickScore(playerIndex, enemy);
         lastActionPointsAwarded += kickPoints;
 
-        enemy.ReturnToStable(false);
-
         if (kickPoints > 0)
         {
             hasNemesisMark = true;
             lastActionAwardedScoredKick = true;
+            string kickLabel = kickPoints >= 3 ? $"+{kickPoints}đ SĂN THƯỞNG! [COMBO]" : $"+{kickPoints}đ ĐÁ HẠ! [COMBO]";
+            SpawnFloatingPopup(kickLabel, new Color(1f, 0.36f, 0.20f, 1f), 1.25f);
         }
+        else
+        {
+            SpawnFloatingPopup("ĐẨY LÙI (0đ)", new Color(0.88f, 0.90f, 0.96f, 1f), 0.95f);
+        }
+
+        if (VietnameseFloorAtmosphere.Instance != null)
+        {
+            VietnameseFloorAtmosphere.Instance.TriggerKickReaction(playerIndex, enemy.playerIndex);
+        }
+
+        if (NetworkManager.Singleton != null &&
+            NetworkManager.Singleton.IsListening &&
+            IsSpawned &&
+            IsServer)
+        {
+            PlayKickCutsceneClientRpc(pieceId, enemy.pieceId, kickPoints, enemy.StablePosition);
+        }
+
+        AnimeKickCutscene cutscene = AnimeKickCutscene.EnsureCreated();
+        if (cutscene != null)
+        {
+            yield return cutscene.PlayClashRoutine(this, enemy, kickPoints, enemy.StablePosition);
+        }
+
+        enemy.ReturnToStable(false);
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    void PlayKickCutsceneClientRpc(int attackerPieceId, int victimPieceId, int kickPoints, Vector3 victimStablePos)
+    {
+        if (IsServer)
+            return;
+
+        if (board == null || board.allPieces == null)
+            return;
+
+        PieceController attacker = null;
+        PieceController victim = null;
+        foreach (PieceController p in board.allPieces)
+        {
+            if (p == null) continue;
+            if (p.pieceId == attackerPieceId) attacker = p;
+            if (p.pieceId == victimPieceId) victim = p;
+        }
+
+        if (attacker != null && victim != null)
+        {
+            if (VietnameseFloorAtmosphere.Instance != null)
+            {
+                VietnameseFloorAtmosphere.Instance.TriggerKickReaction(attacker.playerIndex, victim.playerIndex);
+            }
+
+            AnimeKickCutscene cutscene = AnimeKickCutscene.EnsureCreated();
+            if (cutscene != null)
+            {
+                cutscene.StartCoroutine(cutscene.PlayClashRoutine(attacker, victim, kickPoints, victimStablePos));
+            }
+        }
+    }
+
+    public void SpawnFloatingPopup(string text, Color color, float scale = 1f)
+    {
+        if (NetworkManager.Singleton != null &&
+            NetworkManager.Singleton.IsListening &&
+            IsSpawned &&
+            IsServer)
+        {
+            SpawnFloatingPopupRpc(transform.position, text, color, scale);
+            return;
+        }
+
+        FloatingScoreText.Spawn(transform.position, text, color, scale);
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    void SpawnFloatingPopupRpc(Vector3 worldPos, string text, Color color, float scale)
+    {
+        FloatingScoreText.Spawn(worldPos, text, color, scale);
     }
 
     void PlayMoveSound()
@@ -708,7 +821,7 @@ public class PieceController : NetworkBehaviour
         UpdateStatusBadgeRing();
     }
 
-    void UpdateStatusBadgeRing()
+    public void UpdateStatusBadgeRing()
     {
         bool showRing = !isInStable && (hasNemesisMark || hasPassedCheckpoint);
 

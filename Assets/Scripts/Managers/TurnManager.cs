@@ -218,7 +218,7 @@ public class TurnManager : MonoBehaviour
         return color.ToString();
     }
 
-    string GetTurnDisplayName(int playerIndex)
+    public string GetTurnDisplayName(int playerIndex)
     {
         string displayName = PlayerPrefs.GetString("TurnDisplayName_" + playerIndex, "");
 

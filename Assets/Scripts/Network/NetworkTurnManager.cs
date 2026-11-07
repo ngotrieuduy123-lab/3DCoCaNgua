@@ -105,7 +105,7 @@ public class NetworkTurnManager : NetworkBehaviour
             NetworkDiceManager.Instance.RefreshHighlights();
     }
 
-    string GetTurnDisplayName(int playerIndex)
+    public string GetTurnDisplayName(int playerIndex)
     {
         string displayName = PlayerPrefs.GetString("TurnDisplayName_" + playerIndex, "");
 

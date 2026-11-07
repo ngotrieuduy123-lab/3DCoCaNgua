@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -36,6 +37,8 @@ public class BoardManager : MonoBehaviour
     {
         ApplyPlayerSkins();
         CreateDashTileVisuals();
+        VietnameseFloorAtmosphere.EnsureCreated();
+        AnimeKickCutscene.EnsureCreated();
 
         int count = Mathf.Clamp(PlayerPrefs.GetInt("PlayerCount", 2), 2, 4);
         InitializePartyClashMatch(count);
@@ -434,6 +437,7 @@ public class BoardManager : MonoBehaviour
 
         playerScores[playerIndex] += pts;
         lastFeedMessage = $"{(PlayerColor)playerIndex} qua mốc giữa bàn (+{pts}đ)";
+        GameLogBridge.Send($"[CHECKPOINT ELITE] Quân của {(PlayerColor)playerIndex} vượt mốc bước 28 -> Tiến hóa Tinh Nhuệ (+{pts}đ | Tổng: {playerScores[playerIndex]}đ)", "CHECKPOINT");
         return pts;
     }
 
@@ -459,6 +463,7 @@ public class BoardManager : MonoBehaviour
         string tierLabel = homeIndex >= 3 ? "Về Đích Sâu" : "Về Đích Nông";
         string bonusLabel = rushBonus ? " + Nước Rút!" : "";
         lastFeedMessage = $"{(PlayerColor)playerIndex} {tierLabel}{bonusLabel} (+{pts}đ)";
+        GameLogBridge.Send($"[VỀ ĐÍCH THU ĐIỂM] {(PlayerColor)playerIndex} {tierLabel}{bonusLabel} tại ô đích #{homeIndex + 1} -> +{pts}đ (Tổng: {playerScores[playerIndex]}đ, Quân tái sử dụng về chuồng)", "HOME_CASHIN");
         return pts;
     }
 
@@ -470,6 +475,7 @@ public class BoardManager : MonoBehaviour
         if (victimPiece.hasSpawnProtection)
         {
             lastFeedMessage = $"{(PlayerColor)attackerIndex} đẩy {(PlayerColor)victimPiece.playerIndex} khỏi mốc khởi động (0đ)";
+            GameLogBridge.Send($"[ĐẨY LÙI KHIÊN ĐẦU TRẬN] {(PlayerColor)attackerIndex} đẩy quân có khiên của {(PlayerColor)victimPiece.playerIndex} về chuồng (0đ)", "SHIELD_PUSH");
             return 0;
         }
 
@@ -503,6 +509,7 @@ public class BoardManager : MonoBehaviour
         if (bountyHuntPts > 0) detail += "+Truy Nã";
 
         lastFeedMessage = $"{(PlayerColor)attackerIndex} đá {(PlayerColor)victimPiece.playerIndex} [{detail}] (+{totalPts}đ)";
+        GameLogBridge.Send($"[ĐÁ QUÂN - BOUNTY] {(PlayerColor)attackerIndex} đá hạ quân {(PlayerColor)victimPiece.playerIndex} [{detail}] -> +{totalPts}đ & Mở khóa Combo +3! (Tổng: {playerScores[attackerIndex]}đ)", "KICK_SCORE");
         return totalPts;
     }
 
@@ -583,6 +590,8 @@ public class BoardManager : MonoBehaviour
         }
 
         UpdateEventBannerText(playerCount);
+        if (activeEvent != PartyEventType.None)
+            GameLogBridge.Send($"[BIẾN CỐ TOÀN BÀN] {lastEventBannerText}", "GLOBAL_EVENT");
     }
 
     int FindLeadingPlayerWithScore(int playerCount)
@@ -691,40 +700,202 @@ public class BoardManager : MonoBehaviour
         if (shader == null)
             return;
 
-        Material dashMat = new Material(shader);
-        Color cyanGlow = new Color(0.15f, 0.95f, 0.95f, 0.85f);
-        if (dashMat.HasProperty("_BaseColor")) dashMat.SetColor("_BaseColor", cyanGlow);
-        if (dashMat.HasProperty("_Color")) dashMat.SetColor("_Color", cyanGlow);
+        int ignoreLayer = LayerMask.NameToLayer("Ignore Raycast");
+        float invParentScale = 1f / Mathf.Max(0.001f, transform.lossyScale.x);
 
+        Material cyanMat = CreateUnlitMarkerMaterial(shader, new Color(0.15f, 0.96f, 0.98f, 0.92f));
+        Material checkpointMat = CreateUnlitMarkerMaterial(shader, new Color(1f, 0.78f, 0.16f, 0.85f));
+        Material shallowHomeMat = CreateUnlitMarkerMaterial(shader, new Color(0.24f, 0.95f, 0.56f, 0.72f));
+        Material deepHomeMat = CreateUnlitMarkerMaterial(shader, new Color(1f, 0.76f, 0.14f, 0.92f));
+
+        // 1. 4 Dash Tiles (+3 steps) at indices 7, 21, 35, 49
         for (int i = 0; i < pathPoints.Length; i++)
         {
             if (!IsDashTile(i) || pathPoints[i] == null)
                 continue;
 
-            GameObject ringObj = new GameObject($"DashTileRing_{i}");
-            int ignoreLayer = LayerMask.NameToLayer("Ignore Raycast");
-            if (ignoreLayer >= 0) ringObj.layer = ignoreLayer;
+            Vector3 tilePos = pathPoints[i].position + new Vector3(0f, 0.007f, 0f);
+            GameObject dashRing = CreatePolygonRingMarker(
+                $"DashTileOuter_{i}",
+                tilePos,
+                invParentScale,
+                32,
+                0.044f,
+                0.0065f,
+                cyanMat,
+                ignoreLayer
+            );
+            dashTileMarkers.Add(dashRing);
 
-            ringObj.transform.SetParent(transform, false);
-            ringObj.transform.position = pathPoints[i].position + new Vector3(0.012f, 0.06f, -0.024f);
+            GameObject dashDiamond = CreatePolygonRingMarker(
+                $"DashTileInner_{i}",
+                tilePos + new Vector3(0f, 0.002f, 0f),
+                invParentScale,
+                4,
+                0.026f,
+                0.005f,
+                cyanMat,
+                ignoreLayer
+            );
+            dashTileMarkers.Add(dashDiamond);
 
-            LineRenderer lr = ringObj.AddComponent<LineRenderer>();
-            lr.useWorldSpace = false;
-            lr.loop = true;
-            lr.positionCount = 32;
-            lr.widthMultiplier = 0.006f;
-            lr.sharedMaterial = dashMat;
-            lr.shadowCastingMode = ShadowCastingMode.Off;
-            lr.receiveShadows = false;
-
-            float radius = 0.042f;
-            for (int seg = 0; seg < 32; seg++)
-            {
-                float angle = (Mathf.PI * 2f * seg) / 32f;
-                lr.SetPosition(seg, new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius));
-            }
-
-            dashTileMarkers.Add(ringObj);
+            GameObject dashLabel = CreateFlatTileLabel(
+                $"DashTileLabel_{i}",
+                tilePos + new Vector3(0f, 0.008f, 0f),
+                invParentScale,
+                "+3",
+                new Color(0.20f, 0.98f, 1f, 0.96f),
+                0.82f,
+                ignoreLayer
+            );
+            dashTileMarkers.Add(dashLabel);
         }
+
+        // 2. 4 Start / Checkpoint (Step 28) Gates at indices 0, 14, 28, 42
+        int[] gateIndices = { 0, 14, 28, 42 };
+        foreach (int gateIdx in gateIndices)
+        {
+            if (gateIdx < 0 || gateIdx >= pathPoints.Length || pathPoints[gateIdx] == null)
+                continue;
+
+            Vector3 gatePos = pathPoints[gateIdx].position + new Vector3(0f, 0.006f, 0f);
+            GameObject gateRing = CreatePolygonRingMarker(
+                $"CheckpointGate_{gateIdx}",
+                gatePos,
+                invParentScale,
+                8,
+                0.047f,
+                0.0055f,
+                checkpointMat,
+                ignoreLayer
+            );
+            dashTileMarkers.Add(gateRing);
+        }
+
+        // 3. Home Cash-in Path Tiers: Shallow (0..2 = +4đ) vs Deep (3..5 = +6đ)
+        for (int p = 0; p < 4; p++)
+        {
+            Transform[] homePath = GetHomePath(p);
+            if (homePath == null)
+                continue;
+
+            for (int h = 0; h < homePath.Length; h++)
+            {
+                if (homePath[h] == null)
+                    continue;
+
+                bool isDeep = h >= 3;
+                Vector3 homePos = homePath[h].position + new Vector3(0f, 0.006f, 0f);
+                GameObject homeRing = CreatePolygonRingMarker(
+                    $"HomeTier_{p}_{h}",
+                    homePos,
+                    invParentScale,
+                    isDeep ? 24 : 16,
+                    isDeep ? 0.040f : 0.034f,
+                    isDeep ? 0.006f : 0.0042f,
+                    isDeep ? deepHomeMat : shallowHomeMat,
+                    ignoreLayer
+                );
+                dashTileMarkers.Add(homeRing);
+
+                if (h == 0 || h == 3)
+                {
+                    GameObject tierBadge = CreateFlatTileLabel(
+                        $"HomeTierLabel_{p}_{h}",
+                        homePos + new Vector3(0f, 0.007f, 0f),
+                        invParentScale,
+                        isDeep ? "6đ" : "4đ",
+                        isDeep ? new Color(1f, 0.85f, 0.20f, 0.96f) : new Color(0.35f, 1f, 0.62f, 0.92f),
+                        0.72f,
+                        ignoreLayer
+                    );
+                    dashTileMarkers.Add(tierBadge);
+                }
+            }
+        }
+    }
+
+    Material CreateUnlitMarkerMaterial(Shader shader, Color color)
+    {
+        Material mat = new Material(shader);
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+        if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
+        return mat;
+    }
+
+    GameObject CreatePolygonRingMarker(
+        string markerName,
+        Vector3 worldPosition,
+        float invParentScale,
+        int segments,
+        float radius,
+        float lineWidth,
+        Material sharedMat,
+        int ignoreLayer)
+    {
+        GameObject ringObj = new GameObject(markerName);
+        if (ignoreLayer >= 0)
+            ringObj.layer = ignoreLayer;
+
+        ringObj.transform.SetParent(transform, false);
+        ringObj.transform.position = worldPosition;
+        ringObj.transform.rotation = Quaternion.identity;
+        ringObj.transform.localScale = Vector3.one * invParentScale;
+
+        LineRenderer lr = ringObj.AddComponent<LineRenderer>();
+        lr.useWorldSpace = false;
+        lr.loop = true;
+        lr.positionCount = segments;
+        lr.widthMultiplier = lineWidth;
+        lr.sharedMaterial = sharedMat;
+        lr.shadowCastingMode = ShadowCastingMode.Off;
+        lr.receiveShadows = false;
+
+        for (int seg = 0; seg < segments; seg++)
+        {
+            float angle = (Mathf.PI * 2f * seg) / segments;
+            lr.SetPosition(seg, new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius));
+        }
+
+        return ringObj;
+    }
+
+    GameObject CreateFlatTileLabel(
+        string labelName,
+        Vector3 worldPosition,
+        float invParentScale,
+        string content,
+        Color color,
+        float fontSize,
+        int ignoreLayer)
+    {
+        GameObject go = new GameObject(labelName);
+        if (ignoreLayer >= 0)
+            go.layer = ignoreLayer;
+
+        go.transform.SetParent(transform, false);
+        go.transform.position = worldPosition;
+        go.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+        go.transform.localScale = Vector3.one * (invParentScale * 0.08f);
+
+        TextMeshPro tmp = go.AddComponent<TextMeshPro>();
+        tmp.text = content;
+        tmp.fontSize = fontSize;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        tmp.color = color;
+        tmp.outlineWidth = 0.2f;
+        tmp.outlineColor = new Color32(10, 12, 18, 235);
+
+        MeshRenderer mr = go.GetComponent<MeshRenderer>();
+        if (mr != null)
+        {
+            mr.shadowCastingMode = ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+            mr.sortingOrder = 10;
+        }
+
+        return go;
     }
 }

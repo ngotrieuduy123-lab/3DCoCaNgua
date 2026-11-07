@@ -80,9 +80,7 @@ public class DiceManager : MonoBehaviour
         Debug.Log("Party Clash dice: " + firstValue + " & " + secondValue);
         gameplayUI.SetDice(dice1.value, dice2.value, totalValue);
 
-        string moveOptions = DiceRuleUtility.IsDouble(firstValue, secondValue)
-            ? $"gieo được CẶP ĐÔI [{firstValue} & {secondValue}]! -> ĐƯỢC XUẤT QUÂN HOẶC ĐI TIẾP {totalValue} BƯỚC"
-            : $"gieo được [{firstValue} & {secondValue}] (Tổng: {totalValue}) -> LƯỢT ĐI: Có thể đi xúc xắc 1 ({firstValue} bước), xúc xắc 2 ({secondValue} bước) hoặc tổng ({totalValue} bước)";
+        string moveOptions = $"gieo được 2 hành động độc lập: [Viên 1: {firstValue}] & [Viên 2: {secondValue}] -> Có thể xuất quân hoặc đi 2 nước tách biệt!";
         GameLogBridge.Send($"[KẾT QUẢ ROLL] {pName} ({pColor}) {moveOptions}", "DICE_RESULT");
 
         isRolling = false;
@@ -205,16 +203,21 @@ public class DiceManager : MonoBehaviour
             else
                 gameplayUI.SetMessage($"Đang chọn {(selectedActionSlot == TurnActionSlot.Dice1 ? "Viên 1" : "Viên 2")} ({activeStep} bước) - Click quân để đi");
 
-            gameplayUI.RefreshPartyClashHud(board);
-            GameManager.Instance.SetState(GameState.WaitingChoosePiece);
+            if (gameplayUI != null)
+                gameplayUI.RefreshPartyClashHud(board);
+            if (GameManager.Instance != null)
+                GameManager.Instance.SetState(GameState.WaitingChoosePiece);
             return;
         }
 
         // All actions for this turn are finished or skipped
-        gameplayUI.RefreshPartyClashHud(board);
+        if (gameplayUI != null)
+            gameplayUI.RefreshPartyClashHud(board);
         ResetDice();
-        turnManager.NextTurn();
-        GameManager.Instance.SetState(GameState.WaitingRoll);
+        if (turnManager != null)
+            turnManager.NextTurn();
+        if (GameManager.Instance != null)
+            GameManager.Instance.SetState(GameState.WaitingRoll);
     }
 
     void UpdateActionSlotsUI(bool canInteract)

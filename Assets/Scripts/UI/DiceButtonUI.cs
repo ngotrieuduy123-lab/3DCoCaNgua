@@ -1,3 +1,4 @@
+using TMPro;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
@@ -10,11 +11,32 @@ public class DiceButtonUI : MonoBehaviour
     public NetworkDiceManager networkDiceManager;
 
     private DiceManager localDiceManager;
+    private Image buttonImage;
+    private TMP_Text buttonLabel;
+
+    void Awake()
+    {
+        CacheVisuals();
+    }
+
+    void CacheVisuals()
+    {
+        if (rollButton == null)
+            return;
+
+        if (buttonImage == null)
+            buttonImage = rollButton.GetComponent<Image>();
+
+        if (buttonLabel == null)
+            buttonLabel = rollButton.GetComponentInChildren<TMP_Text>(true);
+    }
 
     void Update()
     {
         if (rollButton == null)
             return;
+
+        CacheVisuals();
 
         bool isNetworkMode =
             NetworkManager.Singleton != null &&
@@ -30,14 +52,19 @@ public class DiceButtonUI : MonoBehaviour
             bool canRollLocal = gameWaitingRollLocal && hasNotRolledLocal;
 
             rollButton.interactable = canRollLocal;
-            SetAlpha(canRollLocal ? 1f : 0.4f);
+            ApplyButtonStateVisuals(
+                canRollLocal,
+                localDiceManager != null && localDiceManager.isRolling
+                    ? "ĐANG LẮC XÚC XẮC..."
+                    : (canRollLocal ? "GIEO 2 XÚC XẮC" : "CHỌN VIÊN & CLICK QUÂN")
+            );
             return;
         }
 
         if (NetworkTurnManager.Instance == null || networkDiceManager == null)
         {
             rollButton.interactable = false;
-            SetAlpha(0.4f);
+            ApplyButtonStateVisuals(false, "ĐANG KẾT NỐI...");
             return;
         }
 
@@ -54,7 +81,30 @@ public class DiceButtonUI : MonoBehaviour
         bool canRoll = isActive && isMyTurn && hasNotRolled && gameWaitingRoll;
 
         rollButton.interactable = canRoll;
-        SetAlpha(canRoll ? 1f : 0.4f);
+        string labelText = canRoll
+            ? "GIEO 2 XÚC XẮC"
+            : (isMyTurn ? "CHỌN VIÊN & CLICK QUÂN" : "CHỜ LƯỢT ĐỐI THỦ...");
+        ApplyButtonStateVisuals(canRoll, labelText);
+    }
+
+    void ApplyButtonStateVisuals(bool canRoll, string text)
+    {
+        SetAlpha(canRoll ? 1f : 0.72f);
+
+        if (buttonImage != null)
+        {
+            buttonImage.color = canRoll
+                ? new Color(0.88f, 0.64f, 0.16f, 1f)
+                : new Color(0.22f, 0.17f, 0.12f, 0.92f);
+        }
+
+        if (buttonLabel != null)
+        {
+            buttonLabel.text = text;
+            buttonLabel.color = canRoll
+                ? new Color(0.14f, 0.09f, 0.03f, 1f)
+                : new Color(0.84f, 0.78f, 0.68f, 0.90f);
+        }
     }
 
     public void RollDice()

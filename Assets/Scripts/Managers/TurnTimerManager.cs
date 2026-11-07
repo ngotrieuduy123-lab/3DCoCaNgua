@@ -85,11 +85,21 @@ public class TurnTimerManager : NetworkBehaviour
 
     void HandleTimeOut()
     {
-        Debug.Log("Turn decision time out (15s)");
+        Debug.Log("Turn decision time out");
+
+        if (NetworkDiceManager.Instance != null)
+        {
+            NetworkDiceManager.Instance.ResetNetworkDice();
+        }
 
         if (NetworkTurnManager.Instance != null)
         {
             NetworkTurnManager.Instance.NextTurn();
+        }
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.SetState(GameState.WaitingRoll);
         }
 
         ResetTimer();

@@ -435,9 +435,9 @@ public class ClickSelectAndMove : MonoBehaviour
     IEnumerator WaitPieceActionThenConsumeOffline(PieceController piece, TurnActionSlot slot)
     {
         float elapsed = 0f;
-        while (piece != null && piece.isMoving && elapsed < 6f)
+        while (piece != null && piece.isMoving && elapsed < 25f)
         {
-            elapsed += Time.deltaTime;
+            elapsed += Time.unscaledDeltaTime;
             yield return null;
         }
 

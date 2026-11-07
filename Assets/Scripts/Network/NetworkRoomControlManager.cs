@@ -98,11 +98,17 @@ public class NetworkRoomControlManager : NetworkBehaviour
 
     public void RequestOutRoom()
     {
-        if (localReturnedToLobby || NetworkManager.Singleton == null)
+        if (localReturnedToLobby)
             return;
 
         if (loadingOverlay != null)
             loadingOverlay.Show("Leaving room...");
+
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening || !IsSpawned)
+        {
+            StartCoroutine(ReturnLocalClientToLobbyRoutine());
+            return;
+        }
 
         if (IsServer)
         {
