@@ -14,7 +14,12 @@ public class SkinWalkAnimator : MonoBehaviour
     AnimationClipPlayable walkPlayable;
     AnimationClipPlayable leftTurnPlayable;
     AnimationClipPlayable rightTurnPlayable;
+    Transform hipsTransform;
+    Vector3 idleHipsLocalPosition;
+    Quaternion idleHipsLocalRotation;
+    bool hasIdleHipsPose;
     bool walking;
+    bool turning;
 
     public void Configure(
         Animator targetAnimator,
@@ -31,6 +36,8 @@ public class SkinWalkAnimator : MonoBehaviour
 
         if (animator == null || walkClip == null)
             return;
+
+        hipsTransform = FindHipsTransform(animator.transform);
 
         graph = PlayableGraph.Create("SkinWalkGraph");
         graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
@@ -62,6 +69,18 @@ public class SkinWalkAnimator : MonoBehaviour
         output.SetSourcePlayable(mixer);
 
         graph.Play();
+        SetMixerInput(0);
+        walkPlayable.SetSpeed(0d);
+        walkPlayable.SetTime(0d);
+        graph.Evaluate(0f);
+
+        if (hipsTransform != null)
+        {
+            idleHipsLocalPosition = hipsTransform.localPosition;
+            idleHipsLocalRotation = hipsTransform.localRotation;
+            hasIdleHipsPose = true;
+        }
+
         SetWalking(false);
     }
 
@@ -70,25 +89,28 @@ public class SkinWalkAnimator : MonoBehaviour
         if (!walkPlayable.IsValid())
             return;
 
-        if (walking && active)
+        if (walking && active && !turning)
             return;
 
         walking = active;
+        turning = false;
         StopTurnPlayables();
 
         if (!walking)
         {
-            graph.Stop();
             SetMixerInput(0);
             walkPlayable.SetSpeed(0d);
             walkPlayable.SetTime(0d);
             graph.Evaluate(0f);
+            graph.Stop();
+            RestoreIdleHipsPose();
             return;
         }
 
         SetMixerInput(0);
         walkPlayable.SetSpeed(1d);
         graph.Play();
+        LockHipsHorizontalDrift();
     }
 
     public float PlayTurn(bool turnLeft)
@@ -100,12 +122,49 @@ public class SkinWalkAnimator : MonoBehaviour
             return 0f;
 
         walking = false;
+        turning = true;
+        RestoreIdleHipsPose();
         SetMixerInput(turnLeft ? 1 : 2);
         playable.SetTime(0d);
         playable.SetSpeed(turnPlaybackSpeed);
         graph.Evaluate(0f);
         graph.Play();
+        RestoreIdleHipsPose();
         return clip.length / turnPlaybackSpeed;
+    }
+
+    static Transform FindHipsTransform(Transform root)
+    {
+        if (root == null)
+            return null;
+
+        foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (t != null && (t.name.EndsWith("Hips") || t.name.Contains("Hips")))
+                return t;
+        }
+        return null;
+    }
+
+    void RestoreIdleHipsPose()
+    {
+        if (!hasIdleHipsPose || hipsTransform == null)
+            return;
+
+        hipsTransform.localPosition = idleHipsLocalPosition;
+        hipsTransform.localRotation = idleHipsLocalRotation;
+    }
+
+    void LockHipsHorizontalDrift()
+    {
+        if (!hasIdleHipsPose || hipsTransform == null)
+            return;
+
+        // Keep vertical bob from walkClip but lock horizontal X/Y drift so GLB walk clips stay centered on tile
+        Vector3 pos = hipsTransform.localPosition;
+        pos.x = idleHipsLocalPosition.x;
+        pos.y = idleHipsLocalPosition.y;
+        hipsTransform.localPosition = pos;
     }
 
     void SetMixerInput(int activeInput)
@@ -128,14 +187,25 @@ public class SkinWalkAnimator : MonoBehaviour
 
     void LateUpdate()
     {
-        if (!walking || !walkPlayable.IsValid() || walkClip == null || walkClip.length <= 0f)
+        if (turning)
+        {
+            RestoreIdleHipsPose();
             return;
+        }
+
+        if (!walking || !walkPlayable.IsValid() || walkClip == null || walkClip.length <= 0f)
+        {
+            RestoreIdleHipsPose();
+            return;
+        }
 
         if (walkPlayable.GetTime() >= walkClip.length)
         {
             walkPlayable.SetTime(walkPlayable.GetTime() % walkClip.length);
             graph.Evaluate(0f);
         }
+
+        LockHipsHorizontalDrift();
     }
 
     void OnDestroy()

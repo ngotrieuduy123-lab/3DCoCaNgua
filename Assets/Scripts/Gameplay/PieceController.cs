@@ -47,6 +47,8 @@ public class PieceController : NetworkBehaviour
     private bool originalTransformCached = false;
     private Coroutine highlightRoutine;
     private Coroutine remoteSkinTransitionRoutine;
+    private Coroutine remoteDirectionRoutine;
+    private bool isRemoteSkinMoving = false;
     private readonly List<GameObject> outlineObjects = new List<GameObject>();
     private Material outlineMaterial;
     private GameObject statusRingObject;
@@ -354,7 +356,7 @@ public class PieceController : NetworkBehaviour
     IEnumerator WalkMainTrackAndResolveRoutine(int step)
     {
         PieceSkinApplicator skinApplicator = GetComponent<PieceSkinApplicator>();
-        float movementSpeed = skinApplicator != null ? Mathf.Max(6.5f, skinApplicator.MovementSpeed) : 6.5f;
+        float movementSpeed = skinApplicator != null ? skinApplicator.MovementSpeed : 5f;
 
         BroadcastSkinMovementBegin();
 
@@ -654,7 +656,14 @@ public class PieceController : NetworkBehaviour
         if (IsServer)
             return;
 
+        isRemoteSkinMoving = true;
         SetHighlight(false);
+
+        if (remoteDirectionRoutine != null)
+        {
+            StopCoroutine(remoteDirectionRoutine);
+            remoteDirectionRoutine = null;
+        }
 
         if (remoteSkinTransitionRoutine != null)
             StopCoroutine(remoteSkinTransitionRoutine);
@@ -665,8 +674,13 @@ public class PieceController : NetworkBehaviour
     [Rpc(SendTo.ClientsAndHost)]
     void UpdateSkinDirectionRpc(Vector3 direction)
     {
-        if (!IsServer)
-            StartCoroutine(RemoteUpdateSkinDirection(direction));
+        if (IsServer || !isRemoteSkinMoving)
+            return;
+
+        if (remoteDirectionRoutine != null)
+            StopCoroutine(remoteDirectionRoutine);
+
+        remoteDirectionRoutine = StartCoroutine(RemoteUpdateSkinDirection(direction));
     }
 
     [Rpc(SendTo.ClientsAndHost)]
@@ -675,8 +689,20 @@ public class PieceController : NetworkBehaviour
         if (IsServer)
             return;
 
+        isRemoteSkinMoving = false;
+
+        if (remoteDirectionRoutine != null)
+        {
+            StopCoroutine(remoteDirectionRoutine);
+            remoteDirectionRoutine = null;
+        }
+
         if (remoteSkinTransitionRoutine != null)
             StopCoroutine(remoteSkinTransitionRoutine);
+
+        PieceSkinApplicator skinApplicator = GetComponent<PieceSkinApplicator>();
+        if (skinApplicator != null)
+            skinApplicator.SetWalking(false);
 
         remoteSkinTransitionRoutine = StartCoroutine(RemoteFinishSkinMovement());
     }
@@ -693,11 +719,20 @@ public class PieceController : NetworkBehaviour
     IEnumerator RemoteUpdateSkinDirection(Vector3 direction)
     {
         PieceSkinApplicator skinApplicator = GetComponent<PieceSkinApplicator>();
-        if (skinApplicator == null)
+        if (skinApplicator == null || !isRemoteSkinMoving)
+        {
+            remoteDirectionRoutine = null;
             yield break;
+        }
 
         yield return skinApplicator.TurnTowards(direction);
-        skinApplicator.SetWalking(true);
+
+        if (isRemoteSkinMoving)
+            skinApplicator.SetWalking(true);
+        else
+            skinApplicator.SetWalking(false);
+
+        remoteDirectionRoutine = null;
     }
 
     IEnumerator RemoteFinishSkinMovement()
@@ -817,6 +852,25 @@ public class PieceController : NetworkBehaviour
         hasSpawnProtection = syncedHasSpawnProtection;
         transform.position = syncedPosition;
         transform.localScale = syncedScale;
+
+        if (!IsServer && (!syncedIsMoving || syncedIsInStable))
+        {
+            isRemoteSkinMoving = false;
+            if (remoteDirectionRoutine != null)
+            {
+                StopCoroutine(remoteDirectionRoutine);
+                remoteDirectionRoutine = null;
+            }
+
+            PieceSkinApplicator skinApplicator = GetComponent<PieceSkinApplicator>();
+            if (skinApplicator != null)
+            {
+                if (syncedIsInStable)
+                    skinApplicator.ResetMotion();
+                else
+                    skinApplicator.SetWalking(false);
+            }
+        }
 
         UpdateStatusBadgeRing();
     }
@@ -1108,6 +1162,9 @@ public class PieceController : NetworkBehaviour
                 SetMaterialColor(selectionRingMaterial, new Color(1f, 0.92f, 0.12f, Mathf.Clamp01(alpha + 0.12f)));
         }
 
+        PieceSkinApplicator skinApplicator = GetComponent<PieceSkinApplicator>();
+        bool showMeshOutline = visible && (skinApplicator == null || !skinApplicator.HasCustomSkin);
+
         foreach (GameObject outline in outlineObjects)
         {
             if (outline == null)
@@ -1117,7 +1174,7 @@ public class PieceController : NetworkBehaviour
 
             Renderer outlineRenderer = outline.GetComponent<Renderer>();
             if (outlineRenderer != null)
-                outlineRenderer.enabled = visible;
+                outlineRenderer.enabled = showMeshOutline;
         }
     }
 }

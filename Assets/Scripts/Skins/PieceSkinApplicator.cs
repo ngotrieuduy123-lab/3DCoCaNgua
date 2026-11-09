@@ -20,6 +20,7 @@ public class PieceSkinApplicator : MonoBehaviour
     Vector3 facingDirection = Vector3.forward;
 
     public float MovementSpeed => movementSpeed;
+    public bool HasCustomSkin => activeModel != null;
 
     public void Initialize(PieceController targetPiece)
     {
@@ -111,18 +112,17 @@ public class PieceSkinApplicator : MonoBehaviour
         float targetYaw = Vector3.SignedAngle(Vector3.forward, worldDirection, Vector3.up);
         Quaternion targetRotation = Quaternion.AngleAxis(targetYaw, Vector3.up) * facingBaseWorldRotation;
         float signedAngle = Vector3.SignedAngle(facingDirection, worldDirection, Vector3.up);
+        facingDirection = worldDirection;
 
         if (Mathf.Abs(signedAngle) <= turnThresholdDegrees)
         {
             visualPivot.transform.rotation = targetRotation;
-            facingDirection = worldDirection;
             yield break;
         }
 
         if (movementStyle == SkinMovementStyle.TransformFlight)
         {
             yield return RotateVisual(startRotation, targetRotation, flightTurnDuration);
-            facingDirection = worldDirection;
             yield break;
         }
 
@@ -130,7 +130,6 @@ public class PieceSkinApplicator : MonoBehaviour
         if (duration <= 0f)
         {
             visualPivot.transform.rotation = targetRotation;
-            facingDirection = worldDirection;
             yield break;
         }
 
@@ -144,7 +143,6 @@ public class PieceSkinApplicator : MonoBehaviour
         }
 
         visualPivot.transform.rotation = targetRotation;
-        facingDirection = worldDirection;
     }
 
     public IEnumerator PrepareMovement()

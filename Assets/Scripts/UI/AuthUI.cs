@@ -34,7 +34,14 @@ public class AuthUI : MonoBehaviour
         ConfigurePasswordFields();
         ApplyReadableInputColors();
         ShowLogin();
-        SetStatus("Login or create an account.");
+        SetStatus("Đăng nhập hoặc tạo tài khoản mới để vào sảnh.");
+        RoyalMenuThemeStyler.EnsureCreated().ApplyForScene(SceneManager.GetActiveScene().name);
+        BgmManager.EnsureCreated().UpdateBgmForScene(SceneManager.GetActiveScene().name);
+    }
+
+    public void QuitGame()
+    {
+        RoyalMenuThemeStyler.QuitApplication();
     }
 
     void ApplyReadableInputColors()
@@ -89,7 +96,7 @@ public class AuthUI : MonoBehaviour
         if (isBusy) return;
 
         SetBusy(true);
-        SetStatus("Logging in...");
+        SetStatus("Đang đăng nhập...");
 
         DatabaseManager.AuthResult result = await DatabaseManager.Instance.LoginPlayerDetailed(
             loginUsernameInput.text,
@@ -112,12 +119,12 @@ public class AuthUI : MonoBehaviour
 
         if (password != confirmPassword)
         {
-            SetStatus("Passwords do not match.");
+            SetStatus("Mật khẩu xác nhận không khớp.");
             return;
         }
 
         SetBusy(true);
-        SetStatus("Creating account...");
+        SetStatus("Đang khởi tạo tài khoản...");
 
         DatabaseManager.AuthResult result = await DatabaseManager.Instance.RegisterPlayerDetailed(
             registerUsernameInput.text,
