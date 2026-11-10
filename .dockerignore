@@ -1,0 +1,20 @@
+# Ignore heavy Unity project assets and caches
+Assets/
+Library/
+Logs/
+Packages/
+ProjectSettings/
+UserSettings/
+Build/
+Builds/
+
+# Ignore local build artifacts and IDE folders
+.git/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+Backend/bin/
+Backend/obj/
+Backend.ConsoleClient/
