@@ -37,6 +37,16 @@ public class TcpBroadcastClient : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
+
+        ServerConfig.Load();
+        if (!string.IsNullOrWhiteSpace(ServerConfig.TcpHost))
+        {
+            serverHost = ServerConfig.TcpHost;
+        }
+        if (ServerConfig.TcpPort > 0)
+        {
+            serverPort = ServerConfig.TcpPort;
+        }
     }
 
     void Start()
@@ -71,6 +81,14 @@ public class TcpBroadcastClient : MonoBehaviour
         try { tcpClient?.Close(); } catch { }
         tcpClient = null;
         networkStream = null;
+    }
+
+    public void SetServer(string host, int port = 7777)
+    {
+        serverHost = host;
+        serverPort = port;
+        Disconnect();
+        ConnectToServer();
     }
 
     private async Task ConnectAndListenAsync(CancellationToken token)

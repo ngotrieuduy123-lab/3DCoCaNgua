@@ -15,6 +15,11 @@ public class DatabaseManager : MonoBehaviour
     public static DatabaseManager Instance;
     [Header("Backend API")]
     [SerializeField] private string backendUrl = "http://127.0.0.1:5001";
+    public string BackendUrl
+    {
+        get => backendUrl;
+        set => backendUrl = value?.TrimEnd('/') ?? "";
+    }
     public PlayerData CurrentPlayer { get; private set; }
     public string LastMessage { get; private set; }
     public bool IsConnected { get; private set; }
@@ -36,10 +41,20 @@ public class DatabaseManager : MonoBehaviour
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
         DontDestroyOnLoad(gameObject);
-        string configured = Environment.GetEnvironmentVariable("COCANGUA_BACKEND_URL");
-        if (!string.IsNullOrWhiteSpace(configured)) backendUrl = configured;
-        backendUrl = backendUrl.TrimEnd('/');
-        if (backendUrl.Contains(":5080")) backendUrl = backendUrl.Replace(":5080", ":5001");
+
+        ServerConfig.Load();
+        if (!string.IsNullOrWhiteSpace(ServerConfig.BackendUrl))
+        {
+            backendUrl = ServerConfig.BackendUrl;
+        }
+        else
+        {
+            string configured = Environment.GetEnvironmentVariable("COCANGUA_BACKEND_URL");
+            if (!string.IsNullOrWhiteSpace(configured)) backendUrl = configured;
+            backendUrl = backendUrl.TrimEnd('/');
+            if (backendUrl.Contains(":5080")) backendUrl = backendUrl.Replace(":5080", ":5001");
+        }
+
         if (FindFirstObjectByType<TcpBroadcastClient>() == null)
         {
             var tcpObj = new GameObject("TcpBroadcastClient");

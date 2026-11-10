@@ -913,11 +913,31 @@ using (var scope = app.Services.CreateScope())
     await DbInitializer.InitializeAsync(scope.ServiceProvider, app.Logger);
 }
 
+var localIps = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+    .Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up &&
+                n.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+    .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+    .Where(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+    .Select(a => a.Address.ToString())
+    .Distinct()
+    .ToList();
+
 Console.WriteLine("==================================================================");
 Console.WriteLine("  GNS301 3D Cờ Cá Ngựa Backend Server Started!");
-Console.WriteLine("  HTTP REST API & Swagger UI: http://localhost:5001/swagger");
-Console.WriteLine("  Web Admin Dashboard:       http://localhost:5001/");
+Console.WriteLine("  Listening On:              http://0.0.0.0:5001 (Tất cả Card mạng)");
+Console.WriteLine("  Localhost Access:          http://localhost:5001/");
+Console.WriteLine("  Swagger API Docs:          http://localhost:5001/swagger");
 Console.WriteLine("  Asynchronous TCP Server:   Port 7777");
+if (localIps.Count > 0)
+{
+    Console.WriteLine("  ----------------------------------------------------------------");
+    Console.WriteLine("  IP LAN / WiFi máy Host (để máy khác cùng mạng kết nối):");
+    foreach (var ip in localIps)
+    {
+        Console.WriteLine($"    -> http://{ip}:5001/  (TCP: {ip}:7777)");
+    }
+    Console.WriteLine("  -> Điền IP này vào file 'server_config.txt' trên máy khách!");
+}
 Console.WriteLine("==================================================================");
 
 static object ToPlayerDto(User u) => DtoHelper.ToPlayerDto(u);

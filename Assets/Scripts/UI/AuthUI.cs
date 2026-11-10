@@ -34,9 +34,39 @@ public class AuthUI : MonoBehaviour
         ConfigurePasswordFields();
         ApplyReadableInputColors();
         ShowLogin();
-        SetStatus("Đăng nhập hoặc tạo tài khoản mới để vào sảnh.");
+        SetStatus($"Đăng nhập hoặc tạo tài khoản mới để vào sảnh.");
         RoyalMenuThemeStyler.EnsureCreated().ApplyForScene(SceneManager.GetActiveScene().name);
         BgmManager.EnsureCreated().UpdateBgmForScene(SceneManager.GetActiveScene().name);
+        CreateServerInfoBadge();
+    }
+
+    void CreateServerInfoBadge()
+    {
+        try
+        {
+            Canvas canvas = GetComponentInParent<Canvas>() ?? FindFirstObjectByType<Canvas>();
+            if (canvas == null) return;
+
+            GameObject badgeObj = new GameObject("ServerInfoBadge");
+            badgeObj.transform.SetParent(canvas.transform, false);
+
+            RectTransform rt = badgeObj.AddComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.anchoredPosition = new Vector2(0, 8);
+            rt.sizeDelta = new Vector2(0, 24);
+
+            TextMeshProUGUI text = badgeObj.AddComponent<TextMeshProUGUI>();
+            text.text = $"<color=#8e9bb0>Server: </color><color=#ffd166>{ServerConfig.BackendUrl}</color> <color=#6c7a89>| TCP: {ServerConfig.TcpHost}:{ServerConfig.TcpPort} (server_config.txt)</color>";
+            text.fontSize = 12;
+            text.alignment = TextAlignmentOptions.Center;
+            text.raycastTarget = false;
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[AuthUI] Could not create server badge: {ex.Message}");
+        }
     }
 
     public void QuitGame()

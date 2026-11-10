@@ -257,3 +257,65 @@ flowchart LR
 
 #### Q4: Bảng `action_logs` giải quyết vấn đề gì khác với `purchaselogs`?
 > **Trả lời:** `purchaselogs` là bảng lưu cấu trúc chuẩn của riêng giao dịch mua đồ. Còn `action_logs` là bảng nhật ký kiểm toán (Audit Trail) dạng NoSQL linh hoạt, không bị bó buộc bởi cột schema cố định. Toàn bộ thông tin từ Đăng nhập, Mua đồ, Lệnh can thiệp của GM Tool đều được chuyển thành chuỗi Plaintext định dạng rõ ràng, giúp truy vết lại chính xác ai đã làm gì, vào thời điểm nào và với giá tiền cụ thể bao nhiêu.
+
+---
+
+## 7. HƯỚNG DẪN KẾT NỐI VÀ CHƠI 2 MÁY CÙNG NHAU (CROSS-MACHINE MULTIPLAYER)
+
+Hệ thống được thiết kế linh hoạt để **chỉ cần build game 1 lần duy nhất**, copy file build sang máy người khác là 2 người có thể kết nối chơi cùng nhau mà không cần sửa code hay rebuild game.
+
+### 1. Kiến trúc kết nối 2 máy
+- **Đồng bộ bàn cờ & nước đi (Gameplay):** Sử dụng **Unity Netcode for GameObjects + Unity Relay Service**. Dữ liệu trận đấu đi qua Relay Cloud của Unity bằng **Room Join Code** (tự động xuyên NAT, không cần mở cổng Router hay cùng mạng).
+- **Tài khoản, Kho đồ & Socket Sự kiện (Backend):** Do máy Host chạy server ASP.NET Core (`dotnet run`). Server lắng nghe trên `http://0.0.0.0:5001` (toàn bộ card mạng) và TCP port `7777`.
+
+### 2. Cách thiết lập cấu hình kết nối (`server_config.txt`)
+Ngay khi mở game lần đầu hoặc trong thư mục game đã build (ngang hàng file `.exe`), game sẽ tự tạo file `server_config.txt`:
+
+```ini
+# ===================================================================
+# FILE CẤU HÌNH SERVER CHO GAME 3D CỜ CÁ NGỰA
+# ===================================================================
+BackendUrl=http://127.0.0.1:5001
+TcpHost=127.0.0.1
+TcpPort=7777
+```
+
+- **Trên máy Host (Máy chạy `dotnet run`):** Giữ nguyên mặc định `127.0.0.1`.
+- **Trên máy Khách (Máy của bạn bè/máy thứ 2):** Mở file `server_config.txt` bằng Notepad và sửa IP thành IP của máy Host.
+
+---
+
+### 3. Các kịch bản kết nối 2 máy
+
+#### Kịch bản A: Hai máy cùng kết nối chung 1 mạng WiFi / LAN
+1. **Trên máy Host:** Mở terminal chạy `dotnet run --project Backend`. Console sẽ in ra danh sách IP LAN:
+   ```text
+   IP LAN / WiFi máy Host (để máy khác cùng mạng kết nối):
+     -> http://192.168.1.15:5001/  (TCP: 192.168.1.15:7777)
+   ```
+2. **Trên máy Khách:** Mở file `server_config.txt` nằm cạnh file `.exe`, sửa thành:
+   ```ini
+   BackendUrl=http://192.168.1.15:5001
+   TcpHost=192.168.1.15
+   TcpPort=7777
+   ```
+3. Khởi động game trên cả 2 máy:
+   - Dưới chân màn hình Đăng nhập (Auth) sẽ hiển thị dòng chữ xác nhận:  
+     `Server: http://192.168.1.15:5001 | TCP: 192.168.1.15:7777 (server_config.txt)`.
+   - Máy 1 đăng nhập tài khoản `player1`, Máy 2 đăng nhập tài khoản `player2`.
+   - Máy 1 bấm **Tạo phòng** ➔ Hệ thống sinh mã Join Code (Ví dụ: `AB12CD`).
+   - Máy 2 nhập mã `AB12CD` ➔ Bấm **Vào phòng**. Cả 2 người chơi lập tức vào cùng bàn cờ 3D và tung xúc xắc thi đấu!
+
+> [!TIP]
+> **Lưu ý Tường lửa (Windows Firewall):** Lần đầu chạy `dotnet run`, Windows Firewall có thể hỏi cấp quyền truy cập mạng cho .NET. Hãy bấm **Allow access (Private network)** để máy khác trong mạng có thể kết nối tới cổng 5001 và 7777.
+
+---
+
+#### Kịch bản B: Hai máy ở 2 nơi khác nhau (Qua Internet)
+Có 2 cách cực kỳ nhanh chóng:
+- **Cách 1 - Radmin VPN / ZeroTier (Khuyên dùng khi chơi nhóm bạn):**
+  - Cả 2 máy cài Radmin VPN và vào cùng 1 room ảo.
+  - Máy khách copy địa chỉ IP ảo Radmin của máy Host (dạng `26.x.x.x`) vào `server_config.txt`.
+- **Cách 2 - ngrok (Miễn phí, không cần cài VPN):**
+  - Trên máy Host chạy: `ngrok http 5001`.
+  - Copy URL dạng `https://xxxx.ngrok-free.app` vào `BackendUrl` trong `server_config.txt` trên máy khách.
