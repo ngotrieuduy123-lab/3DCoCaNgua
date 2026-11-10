@@ -36,6 +36,7 @@ public class GameplayUI : MonoBehaviour
     RectTransform leftScoreboardColumn;
     readonly PlayerCardWidgets[] playerCards = new PlayerCardWidgets[4];
     TMP_Text feedText;
+    RectTransform feedBoxRect;
 
     // Zone 3: Bottom-Right Tactical Dice & Roll Dock
     RectTransform diceDockPanel;
@@ -75,6 +76,8 @@ public class GameplayUI : MonoBehaviour
         public TMP_Text statsText;
         public TMP_Text scoreText;
         public GameObject activeTurnBadge;
+        public Image badgeBg;
+        public TMP_Text badgeText;
     }
 
     // Royal Tabletop Color Palette
@@ -159,7 +162,7 @@ public class GameplayUI : MonoBehaviour
 
         if (turnHeaderText != null)
         {
-            string youTag = (localPlayerIndex >= 0 && localPlayerIndex == turnIdx) ? " <color=#FFD95A>(LƯỢT BẠN)</color>" : "";
+            string youTag = (localPlayerIndex >= 0 && localPlayerIndex == turnIdx) ? " <color=#FFD95A>[BẠN]</color>" : "";
             turnHeaderText.text = $"LƯỢT: <color=#{turnHex}><b>{displayName}</b> ({colorName})</color>{youTag}";
         }
 
@@ -172,6 +175,9 @@ public class GameplayUI : MonoBehaviour
     void RefreshActiveTurnHighlightOnCards()
     {
         int activeIdx = (int)currentTurnColor;
+        BoardManager board = FindFirstObjectByType<BoardManager>();
+        bool hasBounty = board != null && board.activeEvent == PartyEventType.BountyHunt && board.bountyTargetPlayer >= 0;
+
         for (int i = 0; i < playerCards.Length; i++)
         {
             PlayerCardWidgets card = playerCards[i];
@@ -179,17 +185,52 @@ public class GameplayUI : MonoBehaviour
                 continue;
 
             bool isCurrent = i == activeIdx;
+            bool isHunted = hasBounty && board.bountyTargetPlayer == i;
+
             if (card.cardBg != null)
                 card.cardBg.color = isCurrent ? WoodActiveCardBg : WoodDarkBg;
 
             if (card.cardOutline != null)
             {
-                card.cardOutline.effectColor = isCurrent ? GoldBright : BronzeMuted;
-                card.cardOutline.effectDistance = isCurrent ? new Vector2(2.2f, -2.2f) : new Vector2(1.2f, -1.2f);
+                if (isHunted)
+                {
+                    card.cardOutline.effectColor = new Color(1.00f, 0.22f, 0.25f, 1f);
+                    card.cardOutline.effectDistance = new Vector2(2.4f, -2.4f);
+                }
+                else
+                {
+                    card.cardOutline.effectColor = isCurrent ? GoldBright : BronzeMuted;
+                    card.cardOutline.effectDistance = isCurrent ? new Vector2(2.2f, -2.2f) : new Vector2(1.2f, -1.2f);
+                }
             }
 
             if (card.activeTurnBadge != null)
-                card.activeTurnBadge.SetActive(isCurrent);
+            {
+                if (isHunted)
+                {
+                    card.activeTurnBadge.SetActive(true);
+                    if (card.badgeBg != null) card.badgeBg.color = new Color(0.85f, 0.15f, 0.18f, 0.98f);
+                    if (card.badgeText != null)
+                    {
+                        card.badgeText.text = "TRUY NÃ";
+                        card.badgeText.color = Color.white;
+                    }
+                }
+                else if (isCurrent)
+                {
+                    card.activeTurnBadge.SetActive(true);
+                    if (card.badgeBg != null) card.badgeBg.color = GoldBright;
+                    if (card.badgeText != null)
+                    {
+                        card.badgeText.text = "LƯỢT ĐI";
+                        card.badgeText.color = new Color(0.12f, 0.08f, 0.03f, 1f);
+                    }
+                }
+                else
+                {
+                    card.activeTurnBadge.SetActive(false);
+                }
+            }
         }
     }
 
@@ -407,13 +448,28 @@ public class GameplayUI : MonoBehaviour
         board.UpdateEventBannerText(playerCount);
 
         if (eventBannerText != null)
+        {
             eventBannerText.text = $"[ {board.lastEventBannerText} ]";
+            if (board.activeEvent == PartyEventType.BountyHunt)
+                eventBannerText.color = new Color(1.00f, 0.42f, 0.42f, 1f);
+            else if (board.activeEvent == PartyEventType.HomeRush)
+                eventBannerText.color = new Color(1.00f, 0.62f, 0.18f, 1f);
+            else
+                eventBannerText.color = GoldBright;
+        }
 
         if (feedText != null)
         {
             feedText.text = string.IsNullOrWhiteSpace(board.lastFeedMessage)
                 ? "Mẹo: Đạp Ô Tăng Tốc (+3 bước) | Qua bước 28 (+1đ & thành Tinh Nhuệ)"
                 : board.lastFeedMessage;
+        }
+
+        if (feedBoxRect != null && leftScoreboardColumn != null)
+        {
+            float feedY = -44f - (playerCount * 76f) - 6f;
+            feedBoxRect.anchoredPosition = new Vector2(0f, feedY);
+            leftScoreboardColumn.sizeDelta = new Vector2(336f, Mathf.Abs(feedY) + 54f);
         }
 
         int[] rankOrder = board.GetSortedRankingOrder(playerCount);
@@ -439,16 +495,14 @@ public class GameplayUI : MonoBehaviour
                 continue;
 
             string pName = GetSafeDisplayName(i, PlayerPrefs.GetString("TurnDisplayName_" + i, ""));
-            string youBadge = (localPlayerIndex == i) ? " <size=82%><color=#8AE6FF>[BẠN]</color></size>" : "";
-            string bountyBadge = (board.bountyTargetPlayer == i && board.playerScores[i] > 0)
-                ? " <size=80%><color=#FFD24C>[TOP 1]</color></size>"
-                : "";
+            string youBadge = (localPlayerIndex == i) ? " <size=80%><color=#8AE6FF>[BẠN]</color></size>" : "";
+            bool isHuntedTarget = board.activeEvent == PartyEventType.BountyHunt && board.bountyTargetPlayer == i;
 
             if (card.rankText != null)
                 card.rankText.text = $"#{Mathf.Max(1, playerRank[i])}";
 
             if (card.nameText != null)
-                card.nameText.text = $"{pName}{youBadge}{bountyBadge}";
+                card.nameText.text = $"{pName}{youBadge}";
 
             if (card.statsText != null)
                 card.statsText.text = $"Về đích: <b>{board.playerHomeCounts[i]}</b>   |   Đá hạ: <b>{board.playerKickCounts[i]}</b>";
@@ -462,12 +516,45 @@ public class GameplayUI : MonoBehaviour
 
             if (card.cardOutline != null)
             {
-                card.cardOutline.effectColor = isCurrent ? GoldBright : BronzeMuted;
-                card.cardOutline.effectDistance = isCurrent ? new Vector2(2.2f, -2.2f) : new Vector2(1.2f, -1.2f);
+                if (isHuntedTarget)
+                {
+                    card.cardOutline.effectColor = new Color(1.00f, 0.22f, 0.25f, 1f);
+                    card.cardOutline.effectDistance = new Vector2(2.4f, -2.4f);
+                }
+                else
+                {
+                    card.cardOutline.effectColor = isCurrent ? GoldBright : BronzeMuted;
+                    card.cardOutline.effectDistance = isCurrent ? new Vector2(2.2f, -2.2f) : new Vector2(1.2f, -1.2f);
+                }
             }
 
             if (card.activeTurnBadge != null)
-                card.activeTurnBadge.SetActive(isCurrent);
+            {
+                if (isHuntedTarget)
+                {
+                    card.activeTurnBadge.SetActive(true);
+                    if (card.badgeBg != null) card.badgeBg.color = new Color(0.85f, 0.15f, 0.18f, 0.98f);
+                    if (card.badgeText != null)
+                    {
+                        card.badgeText.text = "TRUY NÃ";
+                        card.badgeText.color = Color.white;
+                    }
+                }
+                else if (isCurrent)
+                {
+                    card.activeTurnBadge.SetActive(true);
+                    if (card.badgeBg != null) card.badgeBg.color = GoldBright;
+                    if (card.badgeText != null)
+                    {
+                        card.badgeText.text = "LƯỢT ĐI";
+                        card.badgeText.color = new Color(0.12f, 0.08f, 0.03f, 1f);
+                    }
+                }
+                else
+                {
+                    card.activeTurnBadge.SetActive(false);
+                }
+            }
         }
     }
 
@@ -589,8 +676,8 @@ public class GameplayUI : MonoBehaviour
         topCenterBanner.anchorMin = new Vector2(0.5f, 1f);
         topCenterBanner.anchorMax = new Vector2(0.5f, 1f);
         topCenterBanner.pivot = new Vector2(0.5f, 1f);
-        topCenterBanner.anchoredPosition = new Vector2(20f, -12f);
-        topCenterBanner.sizeDelta = new Vector2(680f, 108f);
+        topCenterBanner.anchoredPosition = new Vector2(20f, -10f);
+        topCenterBanner.sizeDelta = new Vector2(700f, 102f);
 
         Image bannerBg = bannerObj.AddComponent<Image>();
         bannerBg.sprite = GetRoundedPanelSprite();
@@ -605,8 +692,8 @@ public class GameplayUI : MonoBehaviour
             topCenterBanner,
             "MatchClockPill",
             new Vector2(0f, 1f),
-            new Vector2(14f, -10f),
-            new Vector2(172f, 34f),
+            new Vector2(12f, -8f),
+            new Vector2(120f, 32f),
             WoodInnerBg,
             BronzeMuted
         );
@@ -614,20 +701,20 @@ public class GameplayUI : MonoBehaviour
             clockPill.GetComponent<RectTransform>(),
             "MatchClockLabel",
             Vector2.zero,
-            new Vector2(172f, 34f),
-            16f,
+            new Vector2(120f, 32f),
+            15f,
             FontStyles.Bold,
             GoldBright,
             TextAlignmentOptions.Center
         );
 
-        // Center pill: Active Player Turn
+        // Center pill: Active Player Turn (470px wide, plenty of room!)
         GameObject turnPill = CreateRoundedSubPanel(
             topCenterBanner,
             "TurnCrestPill",
             new Vector2(0f, 1f),
-            new Vector2(194f, -10f),
-            new Vector2(344f, 34f),
+            new Vector2(140f, -8f),
+            new Vector2(470f, 32f),
             WoodInnerBg,
             GoldBorder
         );
@@ -635,20 +722,25 @@ public class GameplayUI : MonoBehaviour
             turnPill.GetComponent<RectTransform>(),
             "TurnHeaderLabel",
             Vector2.zero,
-            new Vector2(344f, 34f),
-            17f,
+            new Vector2(470f, 32f),
+            16f,
             FontStyles.Bold,
             IvoryText,
             TextAlignmentOptions.Center
         );
+        turnHeaderText.enableAutoSizing = true;
+        turnHeaderText.fontSizeMin = 12f;
+        turnHeaderText.fontSizeMax = 16f;
+        turnHeaderText.textWrappingMode = TextWrappingModes.NoWrap;
+        turnHeaderText.overflowMode = TextOverflowModes.Ellipsis;
 
         // Right pill: Turn Countdown (20s)
         GameObject timerPill = CreateRoundedSubPanel(
             topCenterBanner,
             "TurnTimerPill",
             new Vector2(0f, 1f),
-            new Vector2(546f, -10f),
-            new Vector2(120f, 34f),
+            new Vector2(618f, -8f),
+            new Vector2(70f, 32f),
             WoodInnerBg,
             BronzeMuted
         );
@@ -657,8 +749,8 @@ public class GameplayUI : MonoBehaviour
             timerPill.GetComponent<RectTransform>(),
             "TurnCountdownLabel",
             Vector2.zero,
-            new Vector2(120f, 34f),
-            18f,
+            new Vector2(70f, 32f),
+            17f,
             FontStyles.Bold,
             GoldBright,
             TextAlignmentOptions.Center
@@ -668,13 +760,17 @@ public class GameplayUI : MonoBehaviour
         eventBannerText = CreateLabel(
             topCenterBanner,
             "EventBannerText",
-            new Vector2(16f, -48f),
-            new Vector2(648f, 24f),
-            14.5f,
+            new Vector2(14f, -44f),
+            new Vector2(672f, 24f),
+            13.5f,
             FontStyles.Bold,
             GoldBright,
             TextAlignmentOptions.Center
         );
+        eventBannerText.enableAutoSizing = true;
+        eventBannerText.fontSizeMin = 11.5f;
+        eventBannerText.fontSizeMax = 13.5f;
+        eventBannerText.textWrappingMode = TextWrappingModes.NoWrap;
 
         // Reparent existing messageText into the bottom row of the Royal Banner
         messageText.transform.SetParent(topCenterBanner, false);
@@ -682,9 +778,12 @@ public class GameplayUI : MonoBehaviour
         msgRt.anchorMin = new Vector2(0f, 1f);
         msgRt.anchorMax = new Vector2(0f, 1f);
         msgRt.pivot = new Vector2(0f, 1f);
-        msgRt.anchoredPosition = new Vector2(16f, -74f);
-        msgRt.sizeDelta = new Vector2(648f, 26f);
-        messageText.fontSize = 15.5f;
+        msgRt.anchoredPosition = new Vector2(14f, -70f);
+        msgRt.sizeDelta = new Vector2(672f, 24f);
+        messageText.fontSize = 14f;
+        messageText.enableAutoSizing = true;
+        messageText.fontSizeMin = 11.5f;
+        messageText.fontSizeMax = 14f;
         messageText.fontStyle = FontStyles.Bold;
         messageText.alignment = TextAlignmentOptions.Center;
         messageText.color = IvoryText;
@@ -704,7 +803,7 @@ public class GameplayUI : MonoBehaviour
         leftScoreboardColumn.anchorMax = new Vector2(0f, 1f);
         leftScoreboardColumn.pivot = new Vector2(0f, 1f);
         leftScoreboardColumn.anchoredPosition = new Vector2(16f, -12f);
-        leftScoreboardColumn.sizeDelta = new Vector2(336f, 430f);
+        leftScoreboardColumn.sizeDelta = new Vector2(336f, 260f);
 
         // Header plate
         GameObject headerPlate = CreateRoundedSubPanel(
@@ -738,17 +837,18 @@ public class GameplayUI : MonoBehaviour
             leftScoreboardColumn,
             "RoyalActionFeedBox",
             new Vector2(0f, 1f),
-            new Vector2(0f, -352f),
-            new Vector2(336f, 52f),
+            new Vector2(0f, -202f),
+            new Vector2(336f, 50f),
             WoodDarkBg,
             BronzeMuted
         );
+        feedBoxRect = feedBox.GetComponent<RectTransform>();
         feedText = CreateLabel(
             feedBox.GetComponent<RectTransform>(),
             "ActionFeedText",
-            new Vector2(12f, -6f),
-            new Vector2(312f, 40f),
-            13.5f,
+            new Vector2(10f, -5f),
+            new Vector2(316f, 40f),
+            12.5f,
             FontStyles.Italic,
             WarmMutedText,
             TextAlignmentOptions.MidlineLeft
@@ -775,12 +875,12 @@ public class GameplayUI : MonoBehaviour
 
         RectTransform cardRt = w.root.GetComponent<RectTransform>();
 
-        // Left Color Crest Emblem (46x48)
+        // Left Color Crest Emblem (48x48)
         GameObject emblemObj = CreateRoundedSubPanel(
             cardRt,
             "FactionEmblem",
             new Vector2(0f, 1f),
-            new Vector2(10f, -10f),
+            new Vector2(8f, -10f),
             new Vector2(48f, 48f),
             GetPlayerColor(playerIndex),
             GoldBorder
@@ -798,33 +898,66 @@ public class GameplayUI : MonoBehaviour
         );
         w.rankText.text = $"#{playerIndex + 1}";
 
-        // Player Name & Tags
+        // Player Name (fits within x = 64..184, width = 120f)
         w.nameText = CreateLabel(
             cardRt,
             "PlayerNameLabel",
-            new Vector2(68f, -10f),
-            new Vector2(182f, 26f),
-            16.5f,
+            new Vector2(64f, -11f),
+            new Vector2(120f, 24f),
+            15f,
             FontStyles.Bold,
             IvoryText,
             TextAlignmentOptions.MidlineLeft
         );
+        w.nameText.enableAutoSizing = true;
+        w.nameText.fontSizeMin = 11f;
+        w.nameText.fontSizeMax = 15f;
+        w.nameText.textWrappingMode = TextWrappingModes.NoWrap;
+        w.nameText.overflowMode = TextOverflowModes.Ellipsis;
         w.nameText.text = GetSafeDisplayName(playerIndex, "");
+
+        // Status Pill (x = 188..250, width = 62f, height = 22f)
+        w.activeTurnBadge = CreateRoundedSubPanel(
+            cardRt,
+            "PlayerStatusPill",
+            new Vector2(0f, 1f),
+            new Vector2(188f, -11f),
+            new Vector2(62f, 22f),
+            GoldBright,
+            GoldBorder
+        );
+        w.badgeBg = w.activeTurnBadge.GetComponent<Image>();
+        w.badgeText = CreateLabel(
+            w.activeTurnBadge.GetComponent<RectTransform>(),
+            "BadgeLabel",
+            Vector2.zero,
+            new Vector2(62f, 22f),
+            10.5f,
+            FontStyles.Bold,
+            new Color(0.12f, 0.08f, 0.03f, 1f),
+            TextAlignmentOptions.Center
+        );
+        w.badgeText.enableAutoSizing = true;
+        w.badgeText.fontSizeMin = 8.5f;
+        w.badgeText.fontSizeMax = 11f;
+        w.badgeText.textWrappingMode = TextWrappingModes.NoWrap;
+        w.badgeText.text = "LƯỢT ĐI";
+        w.activeTurnBadge.SetActive(false);
 
         // Sub-stats (Home & Kick counts)
         w.statsText = CreateLabel(
             cardRt,
             "PlayerStatsLabel",
-            new Vector2(68f, -36f),
-            new Vector2(182f, 22f),
-            13f,
+            new Vector2(64f, -37f),
+            new Vector2(186f, 22f),
+            12.5f,
             FontStyles.Normal,
             WarmMutedText,
             TextAlignmentOptions.MidlineLeft
         );
         w.statsText.text = "Về đích: <b>0</b>   |   Đá hạ: <b>0</b>";
 
-        // Right Recessed Score Box (68x48)
+        // Right Recessed Score Box (70x48)
         GameObject scoreBox = CreateRoundedSubPanel(
             cardRt,
             "ScoreBox",
@@ -845,29 +978,6 @@ public class GameplayUI : MonoBehaviour
             TextAlignmentOptions.Center
         );
         w.scoreText.text = "0đ";
-
-        // Small glowing "ĐANG ĐI" tag on top-right of card
-        w.activeTurnBadge = CreateRoundedSubPanel(
-            cardRt,
-            "ActiveTurnTag",
-            new Vector2(0f, 1f),
-            new Vector2(184f, -4f),
-            new Vector2(66f, 18f),
-            GoldBright,
-            GoldBorder
-        );
-        TMP_Text tagTxt = CreateLabel(
-            w.activeTurnBadge.GetComponent<RectTransform>(),
-            "TagLabel",
-            Vector2.zero,
-            new Vector2(66f, 18f),
-            10.5f,
-            FontStyles.Bold,
-            new Color(0.12f, 0.08f, 0.03f, 1f),
-            TextAlignmentOptions.Center
-        );
-        tagTxt.text = "ĐANG ĐI";
-        w.activeTurnBadge.SetActive(false);
 
         return w;
     }

@@ -435,9 +435,9 @@ public class AnimeKickCutscene : MonoBehaviour
             return;
 
         string slowMoStatus = isSlowMoActive
-            ? "<color=#4DFF88>SLOW-MO 0.3x: BẬT</color>"
-            : "<color=#FFD966>TỐC ĐỘ: 1.0x</color>";
-        debugHintText.text = $"[Phím K] Test Đá Ngay  |  [Phím L] {slowMoStatus}";
+            ? "<color=#4DFF88>SLOW-MO: BẬT</color>"
+            : "<color=#FFD966>1.0x</color>";
+        debugHintText.text = $"[K] Đá Anime | [L] {slowMoStatus} | [B] Truy Nã | [H] Bốc Cháy | [N] Tắt SK";
     }
 
     Sprite GetEquippedSkinPreview(int playerIndex)

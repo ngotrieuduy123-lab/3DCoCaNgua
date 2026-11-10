@@ -39,6 +39,7 @@ public class BoardManager : MonoBehaviour
         CreateDashTileVisuals();
         VietnameseFloorAtmosphere.EnsureCreated();
         AnimeKickCutscene.EnsureCreated();
+        PartyEventPresentation.EnsureCreated(this);
 
         int count = Mathf.Clamp(PlayerPrefs.GetInt("PlayerCount", 2), 2, 4);
         InitializePartyClashMatch(count);
