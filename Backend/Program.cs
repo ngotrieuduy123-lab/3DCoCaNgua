@@ -13,11 +13,20 @@ using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Cloud Port Binding (Render / Railway / Cloud VPS support)
+var portEnv = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(portEnv))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{portEnv}");
+}
+
 // 1. Logging with WebLogCollector
 builder.Logging.AddProvider(new WebLogCollector());
 
-// 2. Read Configuration
-var mongoConnection = builder.Configuration["ConnectionStrings:MongoDB"] ?? "mongodb://localhost:27017";
+// 2. Read Configuration (Supports local appsettings, ConnectionStrings__MongoDB, and MONGODB_URI on Cloud)
+var mongoConnection = builder.Configuration["ConnectionStrings:MongoDB"]
+    ?? Environment.GetEnvironmentVariable("MONGODB_URI")
+    ?? "mongodb://localhost:27017";
 var databaseName = builder.Configuration["DatabaseName"] ?? "GNS301_Lab_CoCaNgua";
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "GNS301_Lab_SU26_StudentCode_SecretKey_2026_SecureKeyForJwtAuth!";
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "GNS301_Lab";
@@ -29,8 +38,8 @@ if (jwtSecret.Length < 32)
 
 // 3. Register MongoDB & Repositories
 var mongoSettings = MongoClientSettings.FromConnectionString(mongoConnection);
-mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(3);
-mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(3);
+mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(10);
+mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(10);
 builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoSettings));
 builder.Services.AddScoped<IMongoDatabase>(sp => sp.GetRequiredService<IMongoClient>().GetDatabase(databaseName));
 

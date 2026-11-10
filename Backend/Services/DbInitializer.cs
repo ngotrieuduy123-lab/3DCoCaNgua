@@ -19,11 +19,11 @@ public static class DbInitializer
             var skinRepo = services.GetRequiredService<ISkinRepository>();
             var actionLogRepo = services.GetRequiredService<IActionLogRepository>();
 
-            // Ping database with a 1-second timeout
-            using var pingCts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+            // Ping database with a 5-second timeout (accommodates cloud/Atlas TLS latency)
+            using var pingCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await db.RunCommandAsync<BsonDocument>(new BsonDocument("ping", 1), cancellationToken: pingCts.Token);
             IsMongoConnected = true;
-            logger.LogInformation("[MongoDB] Successfully connected to mongodb://localhost:27017.");
+            logger.LogInformation("[MongoDB] Successfully connected to database: {DatabaseName}", db.DatabaseNamespace.DatabaseName);
 
             // Clean up obsolete legacy collections from ASM if present
             try

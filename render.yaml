@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: cocangua-backend
+    env: docker
+    dockerfilePath: Backend/Dockerfile
+    dockerContext: Backend
+    plan: free
+    region: singapore
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: DatabaseName
+        value: GNS301_Lab_CoCaNgua
+      - key: ConnectionStrings__MongoDB
+        sync: false
