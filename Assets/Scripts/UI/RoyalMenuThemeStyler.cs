@@ -10,18 +10,18 @@ public class RoyalMenuThemeStyler : MonoBehaviour
 {
     public static RoyalMenuThemeStyler Instance { get; private set; }
 
-    // Royal Tabletop Palette (synchronized with GameplayUI)
-    private static readonly Color WoodDark = new Color(0.11f, 0.07f, 0.05f, 0.97f);
-    private static readonly Color WoodWarm = new Color(0.16f, 0.10f, 0.07f, 0.96f);
-    private static readonly Color WoodInset = new Color(0.08f, 0.05f, 0.035f, 0.96f);
-    private static readonly Color BrassGold = new Color(0.92f, 0.73f, 0.28f, 1f);
-    private static readonly Color BrassBright = new Color(1.00f, 0.88f, 0.48f, 1f);
-    private static readonly Color CreamWhite = new Color(0.98f, 0.95f, 0.88f, 1f);
-    private static readonly Color MutedCream = new Color(0.78f, 0.72f, 0.62f, 1f);
-    private static readonly Color DarkInk = new Color(0.14f, 0.08f, 0.03f, 1f);
-    private static readonly Color CrimsonRed = new Color(0.76f, 0.16f, 0.18f, 0.98f);
-    private static readonly Color EmeraldReady = new Color(0.16f, 0.68f, 0.36f, 0.98f);
-    private static readonly Color SlateSecondary = new Color(0.24f, 0.16f, 0.11f, 0.96f);
+    // Royal Lacquer Arcade Palette (delegated to shared RoyalUiThemeKit tokens)
+    private static Color WoodDark => RoyalUiThemeKit.LacquerEbony;
+    private static Color WoodWarm => RoyalUiThemeKit.LacquerWarm;
+    private static Color WoodInset => RoyalUiThemeKit.LacquerInset;
+    private static Color BrassGold => RoyalUiThemeKit.BrassAntique;
+    private static Color BrassBright => RoyalUiThemeKit.BrassBright;
+    private static Color CreamWhite => RoyalUiThemeKit.IvoryText;
+    private static Color MutedCream => RoyalUiThemeKit.WarmMutedText;
+    private static Color DarkInk => RoyalUiThemeKit.DarkGoldInk;
+    private static Color CrimsonRed => RoyalUiThemeKit.ArcadeCrimson;
+    private static Color EmeraldReady => RoyalUiThemeKit.ArcadeJade;
+    private static Color SlateSecondary => RoyalUiThemeKit.ArcadeSlate;
 
     private static readonly Color[] FactionColors =
     {
@@ -47,8 +47,6 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         Star = 3,
         Check = 4
     }
-
-    private static readonly Dictionary<TokenSpriteKind, Sprite> CachedSprites = new Dictionary<TokenSpriteKind, Sprite>();
 
     private struct FloatingToken
     {
@@ -196,14 +194,20 @@ public class RoyalMenuThemeStyler : MonoBehaviour
     private void StyleAuthScene()
     {
         GameObject bgObj = FindInActiveScene("Background");
+        Transform canvasRoot = bgObj != null && bgObj.transform.parent != null ? bgObj.transform.parent : null;
+
         if (bgObj != null)
         {
             Image bgImg = bgObj.GetComponent<Image>();
             if (bgImg != null)
-                bgImg.color = new Color(0.96f, 0.88f, 0.78f, 1f);
+                bgImg.color = new Color(0.82f, 0.72f, 0.60f, 1f);
 
             BuildLivelyBoardBackdrop(bgObj.transform, true);
-            BuildTopRightQuitButton(bgObj.transform.parent != null ? bgObj.transform.parent : bgObj.transform);
+        }
+
+        if (canvasRoot != null)
+        {
+            BuildTopRightQuitButton(canvasRoot);
         }
 
         GameObject authCard = FindInActiveScene("AuthCard");
@@ -212,23 +216,24 @@ public class RoyalMenuThemeStyler : MonoBehaviour
             RectTransform cardRect = authCard.GetComponent<RectTransform>();
             if (cardRect != null)
             {
-                cardRect.anchoredPosition = new Vector2(0f, 0f);
-                cardRect.sizeDelta = new Vector2(540f, 640f);
+                cardRect.anchoredPosition = new Vector2(0f, 4f);
+                cardRect.sizeDelta = new Vector2(548f, 646f);
             }
 
-            StyleMahoganyPanel(authCard, WoodDark, BrassGold, 2.5f);
+            StyleMahoganyPanel(authCard, WoodDark, BrassGold, 2.2f);
             BuildRoyalHeaderDecor(authCard.transform);
+            EnsureSectionRibbonPlaque(authCard.transform, "AuthTitlePlaque", new Vector2(0f, 240f), new Vector2(464f, 58f), RoyalUiThemeKit.CrimsonVelvet);
             BuildCardQuitButton(authCard.transform);
         }
 
-        StyleText("Title", "CỜ CÁ NGỰA 3D", 34f, BrassBright, FontStyles.Bold);
-        SetRectPositionAndSize("Title", new Vector2(0f, 244f), new Vector2(480f, 54f));
+        StyleText("Title", "CỜ CÁ NGỰA 3D", 32f, BrassBright, FontStyles.Bold);
+        SetRectPositionAndSize("Title", new Vector2(0f, 240f), new Vector2(450f, 52f));
 
-        StyleText("Subtitle", "ĐẤU TRƯỜNG PARTY CLASH — ĐĂNG NHẬP KỲ THỦ", 14.5f, CreamWhite, FontStyles.Bold);
-        SetRectPositionAndSize("Subtitle", new Vector2(0f, 204f), new Vector2(480f, 32f));
+        StyleText("Subtitle", "ĐẤU TRƯỜNG PARTY CLASH — ĐĂNG NHẬP KỲ THỦ", 14f, CreamWhite, FontStyles.Bold);
+        SetRectPositionAndSize("Subtitle", new Vector2(0f, 194f), new Vector2(480f, 30f));
 
-        StyleText("StatusText", "Đăng nhập hoặc tạo tài khoản mới để vào sảnh", 14f, BrassGold, FontStyles.Italic);
-        SetRectPositionAndSize("StatusText", new Vector2(0f, -238f), new Vector2(460f, 38f));
+        StyleText("StatusText", "Đăng nhập hoặc tạo tài khoản mới để vào sảnh", 13.5f, BrassGold, FontStyles.Italic);
+        SetRectPositionAndSize("StatusText", new Vector2(0f, -242f), new Vector2(470f, 36f));
 
         string[] inputs =
         {
@@ -249,8 +254,8 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         SetInputPlaceholder("RegisterPasswordInput", "Mật khẩu...");
         SetInputPlaceholder("RegisterConfirmPasswordInput", "Nhập lại mật khẩu...");
 
-        StyleRoyalButton("LoginButton", BrassGold, DarkInk, "ĐĂNG NHẬP VÀO SẢNH", true);
-        StyleRoyalButton("RegisterButton", BrassGold, DarkInk, "HOÀN TẤT ĐĂNG KÝ", true);
+        StyleRoyalButton("LoginButton", RoyalUiThemeKit.ArcadeGoldCta, DarkInk, "ĐĂNG NHẬP VÀO SẢNH", true);
+        StyleRoyalButton("RegisterButton", RoyalUiThemeKit.ArcadeGoldCta, DarkInk, "HOÀN TẤT ĐĂNG KÝ", true);
         StyleRoyalButton("ShowRegisterButton", SlateSecondary, CreamWhite, "Tạo Tài Khoản Mới", false);
         StyleRoyalButton("ShowLoginButton", SlateSecondary, CreamWhite, "Quay Lại Đăng Nhập", false);
         StyleRoyalButton("LoginPasswordToggle", WoodWarm, BrassBright, null, false);
@@ -270,7 +275,7 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         {
             Image bgImg = bgObj.GetComponent<Image>();
             if (bgImg != null)
-                bgImg.color = new Color(0.96f, 0.88f, 0.78f, 1f);
+                bgImg.color = new Color(0.82f, 0.72f, 0.60f, 1f);
 
             BuildLivelyBoardBackdrop(bgObj.transform, false);
         }
@@ -278,15 +283,17 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         if (canvasRoot != null)
         {
             BuildTopRightQuitButton(canvasRoot);
+            BuildTopRightHelpButton(canvasRoot, new Vector2(-182f, -14f));
+            EnsureLobbyTitlePlaque(canvasRoot);
         }
 
-        // Cleanly position LobbyTitle and LobbySubtitle at top-left so they never wrap or overlap RoomPanel
-        StyleText("LobbyTitle", "SẢNH ĐẤU CỜ CÁ NGỰA 3D", 28f, BrassBright, FontStyles.Bold);
-        SetRectPositionAndSize("LobbyTitle", new Vector2(-315f, 314f), new Vector2(540f, 40f));
+        // Cleanly position LobbyTitle and LobbySubtitle inside top-left header plaque
+        StyleText("LobbyTitle", "SẢNH ĐẤU CỜ CÁ NGỰA 3D", 25.5f, BrassBright, FontStyles.Bold);
+        SetRectPositionAndSize("LobbyTitle", new Vector2(-335f, 317f), new Vector2(490f, 36f));
         SetTextAlignment("LobbyTitle", TextAlignmentOptions.Left);
 
-        StyleText("LobbySubtitle", "Tạo bàn chơi, chia sẻ Mã Phòng và sẵn sàng xuất quân!", 14.5f, CreamWhite, FontStyles.Normal);
-        SetRectPositionAndSize("LobbySubtitle", new Vector2(-315f, 282f), new Vector2(540f, 26f));
+        StyleText("LobbySubtitle", "Tạo bàn chơi, chia sẻ Mã Phòng và sẵn sàng xuất quân!", 13.5f, CreamWhite, FontStyles.Normal);
+        SetRectPositionAndSize("LobbySubtitle", new Vector2(-335f, 286f), new Vector2(490f, 24f));
         SetTextAlignment("LobbySubtitle", TextAlignmentOptions.Left);
 
         GameObject roomPanel = FindInActiveScene("RoomPanel");
@@ -298,10 +305,11 @@ public class RoyalMenuThemeStyler : MonoBehaviour
             if (rpRect != null)
             {
                 rpRect.anchoredPosition = new Vector2(-320f, -34f);
-                rpRect.sizeDelta = new Vector2(490f, 520f);
+                rpRect.sizeDelta = new Vector2(494f, 524f);
             }
-            StyleMahoganyPanel(roomPanel, WoodDark, BrassGold, 2.5f);
+            StyleMahoganyPanel(roomPanel, WoodDark, BrassGold, 2.2f);
             BuildFactionCornerGems(roomPanel.transform);
+            EnsureSectionRibbonPlaque(roomPanel.transform, "RoomHeaderPlaque", new Vector2(0f, 212f), new Vector2(436f, 40f), RoyalUiThemeKit.CrimsonVelvet);
         }
 
         if (playersPanel != null)
@@ -310,17 +318,20 @@ public class RoyalMenuThemeStyler : MonoBehaviour
             if (ppRect != null)
             {
                 ppRect.anchoredPosition = new Vector2(290f, -34f);
-                ppRect.sizeDelta = new Vector2(520f, 520f);
+                ppRect.sizeDelta = new Vector2(524f, 524f);
             }
-            StyleMahoganyPanel(playersPanel, WoodDark, BrassGold, 2.5f);
+            StyleMahoganyPanel(playersPanel, WoodDark, BrassGold, 2.2f);
             BuildFactionCornerGems(playersPanel.transform);
+            EnsureSectionRibbonPlaque(playersPanel.transform, "PlayersHeaderPlaque", new Vector2(0f, 216f), new Vector2(466f, 40f), RoyalUiThemeKit.NavyRibbon);
         }
 
-        StyleText("RoomHeader", "BÀN ĐIỀU KHIỂN PHÒNG", 21f, BrassBright, FontStyles.Bold);
-        SetRectPositionAndSize("RoomHeader", new Vector2(0f, 212f), new Vector2(430f, 34f));
+        StyleText("RoomHeader", "BÀN ĐIỀU KHIỂN PHÒNG", 19f, BrassBright, FontStyles.Bold);
+        SetRectPositionAndSize("RoomHeader", new Vector2(0f, 212f), new Vector2(420f, 34f));
+        SetTextAlignment("RoomHeader", TextAlignmentOptions.Center);
 
-        StyleText("PlayersHeader", "SẢNH KỲ THỦ (4 CHUỒNG)", 21f, BrassBright, FontStyles.Bold);
-        SetRectPositionAndSize("PlayersHeader", new Vector2(0f, 216f), new Vector2(450f, 34f));
+        StyleText("PlayersHeader", "SẢNH KỲ THỦ (4 CHUỒNG)", 19f, BrassBright, FontStyles.Bold);
+        SetRectPositionAndSize("PlayersHeader", new Vector2(0f, 216f), new Vector2(440f, 34f));
+        SetTextAlignment("PlayersHeader", TextAlignmentOptions.Center);
 
         // Reposition RoomPanel controls cleanly so nothing is cramped
         SetRectPositionAndSize("JoinCodeText", new Vector2(0f, 166f), new Vector2(430f, 34f));
@@ -331,14 +342,14 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         SetRectPositionAndSize("LeaveRoomButton", new Vector2(112f, -14f), new Vector2(206f, 44f));
         SetRectPositionAndSize("CopyCodeButton", new Vector2(-112f, -72f), new Vector2(206f, 42f));
         SetRectPositionAndSize("BackToAuthButton", new Vector2(112f, -72f), new Vector2(206f, 42f));
-        SetRectPositionAndSize("LobbyShopButton", new Vector2(-112f, -130f), new Vector2(206f, 44f));
-        SetRectPositionAndSize("LobbySkinsButton", new Vector2(112f, -130f), new Vector2(206f, 44f));
+        SetRectPositionAndSize("LobbyShopButton", new Vector2(-112f, -130f), new Vector2(206f, 46f));
+        SetRectPositionAndSize("LobbySkinsButton", new Vector2(112f, -130f), new Vector2(206f, 46f));
         SetRectPositionAndSize("StatusRelay", new Vector2(0f, -210f), new Vector2(430f, 30f));
 
         // Reposition PlayersPanel bottom buttons & status text so 4 Seat Cards fit with generous breathing room
-        SetRectPositionAndSize("ReadyButton", new Vector2(-114f, -172f), new Vector2(212f, 48f));
-        SetRectPositionAndSize("StartGameButton", new Vector2(114f, -172f), new Vector2(212f, 48f));
-        SetRectPositionAndSize("StatusText", new Vector2(0f, -224f), new Vector2(460f, 30f));
+        SetRectPositionAndSize("ReadyButton", new Vector2(-114f, -172f), new Vector2(212f, 50f));
+        SetRectPositionAndSize("StartGameButton", new Vector2(114f, -172f), new Vector2(212f, 50f));
+        SetRectPositionAndSize("StatusText", new Vector2(0f, -226f), new Vector2(460f, 30f));
 
         if (playersPanel != null)
         {
@@ -354,15 +365,15 @@ public class RoyalMenuThemeStyler : MonoBehaviour
             {
                 jcText.color = BrassBright;
                 jcText.fontStyle = FontStyles.Bold;
-                jcText.fontSize = 19f;
+                jcText.fontSize = 18.5f;
             }
         }
 
         StyleRoyalInputField("JoinCodeInput");
         SetInputPlaceholder("JoinCodeInput", "Nhập Mã Phòng (VD: AB12CD)...");
 
-        StyleRoyalButton("CreateRoomButton", BrassGold, DarkInk, "Tạo Phòng", true);
-        StyleRoyalButton("JoinRoomButton", BrassGold, DarkInk, "Vào Phòng", true);
+        StyleRoyalButton("CreateRoomButton", RoyalUiThemeKit.ArcadeGoldCta, DarkInk, "Tạo Phòng", true);
+        StyleRoyalButton("JoinRoomButton", RoyalUiThemeKit.ArcadeGoldCta, DarkInk, "Vào Phòng", true);
         StyleRoyalButton("ReconnectButton", SlateSecondary, CreamWhite, "Kết Nối Lại", false);
         StyleRoyalButton("LeaveRoomButton", SlateSecondary, CreamWhite, "Rời Phòng", false);
         StyleRoyalButton("CopyCodeButton", SlateSecondary, BrassBright, "Sao Chép Mã", false);
@@ -371,7 +382,7 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         StyleRoyalButton("LobbySkinsButton", WoodWarm, BrassBright, "Tủ Skin", false);
 
         StyleRoyalButton("ReadyButton", EmeraldReady, Color.white, "SẴN SÀNG", true);
-        StyleRoyalButton("StartGameButton", BrassGold, DarkInk, "BẮT ĐẦU TRẬN", true);
+        StyleRoyalButton("StartGameButton", RoyalUiThemeKit.ArcadeGoldCta, DarkInk, "BẮT ĐẦU TRẬN", true);
 
         GameObject readyBtnObj = FindInActiveScene("ReadyButton");
         if (readyBtnObj != null)
@@ -446,6 +457,8 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         rect.sizeDelta = size;
 
         view.cardBg = card.GetComponent<Image>();
+        view.cardBg.sprite = RoyalUiThemeKit.GetLacquerPanelSprite();
+        view.cardBg.type = Image.Type.Sliced;
         view.cardBg.color = WoodInset;
 
         view.cardOutline = card.GetComponent<Outline>();
@@ -460,12 +473,14 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         GameObject stripe = new GameObject("FactionStripe", typeof(RectTransform), typeof(Image));
         stripe.transform.SetParent(card.transform, false);
         RectTransform stripeRect = stripe.GetComponent<RectTransform>();
-        stripeRect.anchorMin = new Vector2(0f, 0f);
-        stripeRect.anchorMax = new Vector2(0f, 1f);
+        stripeRect.anchorMin = new Vector2(0f, 0.1f);
+        stripeRect.anchorMax = new Vector2(0f, 0.9f);
         stripeRect.pivot = new Vector2(0f, 0.5f);
-        stripeRect.anchoredPosition = Vector2.zero;
-        stripeRect.sizeDelta = new Vector2(9f, 0f);
+        stripeRect.anchoredPosition = new Vector2(4f, 0f);
+        stripeRect.sizeDelta = new Vector2(6f, 0f);
         view.factionStripe = stripe.GetComponent<Image>();
+        view.factionStripe.sprite = RoyalUiThemeKit.GetPillCapsuleSprite();
+        view.factionStripe.type = Image.Type.Sliced;
         view.factionStripe.color = factionCol;
 
         // Avatar / Skin Portrait Frame
@@ -478,6 +493,8 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         avRect.sizeDelta = new Vector2(48f, 48f);
 
         view.avatarBg = avatarObj.GetComponent<Image>();
+        view.avatarBg.sprite = RoyalUiThemeKit.GetRecessedSlotSprite();
+        view.avatarBg.type = Image.Type.Sliced;
         view.avatarBg.color = new Color(factionCol.r * 0.30f, factionCol.g * 0.30f, factionCol.b * 0.30f, 0.95f);
 
         Outline avOutline = avatarObj.GetComponent<Outline>();
@@ -548,6 +565,8 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         bRect.sizeDelta = new Vector2(110f, 32f);
 
         view.statusBadgeBg = badgeObj.GetComponent<Image>();
+        view.statusBadgeBg.sprite = RoyalUiThemeKit.GetPillCapsuleSprite();
+        view.statusBadgeBg.type = Image.Type.Sliced;
         view.statusBadgeBg.color = new Color(0.18f, 0.14f, 0.11f, 0.92f);
 
         Outline badgeOutline = badgeObj.GetComponent<Outline>();
@@ -753,15 +772,16 @@ public class RoyalMenuThemeStyler : MonoBehaviour
             rt.sizeDelta = new Vector2(size, size);
 
             Image badgeBg = tokenObj.GetComponent<Image>();
-            badgeBg.color = new Color(0.13f, 0.08f, 0.05f, 0.86f);
+            badgeBg.sprite = RoyalUiThemeKit.GetCircleMedallionSprite();
+            badgeBg.color = new Color(0.15f, 0.09f, 0.055f, 0.88f);
             badgeBg.raycastTarget = false;
 
             Outline outline = tokenObj.GetComponent<Outline>();
-            outline.effectColor = new Color(col.r, col.g, col.b, 0.82f);
-            outline.effectDistance = new Vector2(1.5f, -1.5f);
+            outline.effectColor = new Color(col.r, col.g, col.b, 0.65f);
+            outline.effectDistance = new Vector2(1.4f, -1.4f);
 
             Shadow shadow = tokenObj.GetComponent<Shadow>();
-            shadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.45f);
             shadow.effectDistance = new Vector2(0f, -3f);
 
             GameObject spriteChild = new GameObject("IconSprite", typeof(RectTransform), typeof(Image));
@@ -769,13 +789,13 @@ public class RoyalMenuThemeStyler : MonoBehaviour
             RectTransform scRect = spriteChild.GetComponent<RectTransform>();
             scRect.anchorMin = Vector2.zero;
             scRect.anchorMax = Vector2.one;
-            scRect.offsetMin = new Vector2(8f, 8f);
-            scRect.offsetMax = new Vector2(-8f, -8f);
+            scRect.offsetMin = new Vector2(10f, 10f);
+            scRect.offsetMax = new Vector2(-10f, -10f);
 
             Image spImg = spriteChild.GetComponent<Image>();
             spImg.sprite = GetOrCreateSprite(kinds[i % kinds.Length]);
             spImg.preserveAspect = true;
-            spImg.color = col;
+            spImg.color = new Color(col.r, col.g, col.b, 0.95f);
             spImg.raycastTarget = false;
 
             floatingTokens.Add(new FloatingToken
@@ -869,9 +889,76 @@ public class RoyalMenuThemeStyler : MonoBehaviour
             sRect.offsetMax = new Vector2(-2f, 0f);
 
             Image sImg = seg.GetComponent<Image>();
+            sImg.sprite = RoyalUiThemeKit.GetPillCapsuleSprite();
+            sImg.type = Image.Type.Sliced;
             sImg.color = FactionColors[i];
             sImg.raycastTarget = false;
         }
+    }
+
+    private static void EnsureSectionRibbonPlaque(Transform parent, string plaqueName, Vector2 anchoredPos, Vector2 size, Color fillTint)
+    {
+        if (parent == null)
+            return;
+
+        Transform existing = parent.Find(plaqueName);
+        if (existing != null)
+            Destroy(existing.gameObject);
+
+        GameObject plaque = new GameObject(plaqueName, typeof(RectTransform), typeof(Image), typeof(Outline), typeof(Shadow));
+        plaque.transform.SetParent(parent, false);
+        plaque.transform.SetAsFirstSibling();
+
+        RectTransform rt = plaque.GetComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = anchoredPos;
+        rt.sizeDelta = size;
+
+        Image img = plaque.GetComponent<Image>();
+        img.sprite = RoyalUiThemeKit.GetRibbonHeaderSprite();
+        img.type = Image.Type.Sliced;
+        img.color = fillTint;
+        img.raycastTarget = false;
+
+        Outline ol = plaque.GetComponent<Outline>();
+        ol.effectColor = BrassGold;
+        ol.effectDistance = new Vector2(1.4f, -1.4f);
+
+        Shadow sh = plaque.GetComponent<Shadow>();
+        sh.effectColor = new Color(0f, 0f, 0f, 0.55f);
+        sh.effectDistance = new Vector2(0f, -3f);
+    }
+
+    private static void EnsureLobbyTitlePlaque(Transform canvasRoot)
+    {
+        if (canvasRoot == null)
+            return;
+
+        Transform existing = canvasRoot.Find("RoyalLobbyTitlePlaque");
+        if (existing != null)
+            Destroy(existing.gameObject);
+
+        GameObject plaque = new GameObject("RoyalLobbyTitlePlaque", typeof(RectTransform));
+        plaque.transform.SetParent(canvasRoot, false);
+
+        RectTransform rt = plaque.GetComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = new Vector2(-335f, 304f);
+        rt.sizeDelta = new Vector2(548f, 76f);
+
+        RoyalUiThemeKit.ApplyLacquerPanel(plaque, RoyalUiThemeKit.CrimsonVelvet, BrassGold, 1.8f, false);
+
+        // Place behind LobbyTitle and LobbySubtitle in sibling order
+        GameObject lobbyTitle = FindInActiveScene("LobbyTitle");
+        if (lobbyTitle != null && lobbyTitle.transform.parent == canvasRoot)
+            plaque.transform.SetSiblingIndex(Mathf.Max(0, lobbyTitle.transform.GetSiblingIndex()));
+    }
+
+    private static void BuildTopRightHelpButton(Transform canvasRoot, Vector2 anchoredPos)
+    {
+        RoyalUiThemeKit.BuildHelpGuideButton(canvasRoot, new Vector2(1f, 1f), anchoredPos, 40f);
     }
 
     // =========================================================================
@@ -890,25 +977,33 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
         rt.pivot = new Vector2(1f, 1f);
         rt.anchoredPosition = new Vector2(-18f, -14f);
-        rt.sizeDelta = new Vector2(142f, 38f);
+        rt.sizeDelta = new Vector2(154f, 40f);
 
-        Image img = btnObj.GetComponent<Image>();
-        img.color = CrimsonRed;
-
-        Outline outline = btnObj.GetComponent<Outline>();
-        outline.effectColor = BrassGold;
-        outline.effectDistance = new Vector2(1.5f, -1.5f);
-
-        Shadow shadow = btnObj.GetComponent<Shadow>();
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.65f);
-        shadow.effectDistance = new Vector2(0f, -3f);
+        RoyalUiThemeKit.ApplyArcadeButton(btnObj, CrimsonRed, BrassGold, 1.5f);
 
         Button btn = btnObj.GetComponent<Button>();
-        btn.targetGraphic = img;
+        btn.targetGraphic = btnObj.GetComponent<Image>();
         btn.onClick.AddListener(QuitApplication);
 
-        TMP_Text label = CreateTmpLabel(btnObj.transform, "QuitLabel", "THOÁT GAME", 14f, Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
-        StretchFull(label.rectTransform);
+        GameObject iconObj = new GameObject("ExitIcon", typeof(RectTransform), typeof(Image));
+        iconObj.transform.SetParent(rt, false);
+        RectTransform iRt = iconObj.GetComponent<RectTransform>();
+        iRt.anchorMin = iRt.anchorMax = new Vector2(0f, 0.5f);
+        iRt.pivot = new Vector2(0f, 0.5f);
+        iRt.anchoredPosition = new Vector2(11f, 1f);
+        iRt.sizeDelta = new Vector2(19f, 19f);
+        Image iImg = iconObj.GetComponent<Image>();
+        iImg.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.DoorExit);
+        iImg.preserveAspect = true;
+        iImg.color = Color.white;
+        iImg.raycastTarget = false;
+
+        TMP_Text label = CreateTmpLabel(btnObj.transform, "QuitLabel", "THOÁT GAME", 13.5f, Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
+        RectTransform lRt = label.rectTransform;
+        lRt.anchorMin = Vector2.zero;
+        lRt.anchorMax = Vector2.one;
+        lRt.offsetMin = new Vector2(28f, 2f);
+        lRt.offsetMax = new Vector2(-8f, -1f);
 
         AttachHoverScale(btnObj);
     }
@@ -919,24 +1014,19 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         if (existing != null)
             Destroy(existing.gameObject);
 
-        GameObject btnObj = new GameObject("AuthCardQuitButton", typeof(RectTransform), typeof(Image), typeof(Button), typeof(Outline));
+        GameObject btnObj = new GameObject("AuthCardQuitButton", typeof(RectTransform), typeof(Image), typeof(Button), typeof(Outline), typeof(Shadow));
         btnObj.transform.SetParent(authCard, false);
 
         RectTransform rt = btnObj.GetComponent<RectTransform>();
         rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
         rt.pivot = new Vector2(0.5f, 0f);
         rt.anchoredPosition = new Vector2(0f, 14f);
-        rt.sizeDelta = new Vector2(200f, 34f);
+        rt.sizeDelta = new Vector2(210f, 36f);
 
-        Image img = btnObj.GetComponent<Image>();
-        img.color = new Color(0.52f, 0.12f, 0.14f, 0.95f);
-
-        Outline outline = btnObj.GetComponent<Outline>();
-        outline.effectColor = new Color(0.92f, 0.73f, 0.28f, 0.75f);
-        outline.effectDistance = new Vector2(1.2f, -1.2f);
+        RoyalUiThemeKit.ApplyArcadeButton(btnObj, new Color(0.56f, 0.14f, 0.16f, 0.98f), new Color(0.92f, 0.73f, 0.28f, 0.85f), 1.3f);
 
         Button btn = btnObj.GetComponent<Button>();
-        btn.targetGraphic = img;
+        btn.targetGraphic = btnObj.GetComponent<Image>();
         btn.onClick.AddListener(QuitApplication);
 
         TMP_Text label = CreateTmpLabel(btnObj.transform, "Label", "Thoát Trò Chơi", 13.5f, CreamWhite, FontStyles.Bold, TextAlignmentOptions.Center);
@@ -960,148 +1050,15 @@ public class RoyalMenuThemeStyler : MonoBehaviour
     // =========================================================================
     private static Sprite GetOrCreateSprite(TokenSpriteKind kind)
     {
-        if (CachedSprites.TryGetValue(kind, out Sprite existing) && existing != null)
-            return existing;
-
-        const int S = 48;
-        Texture2D tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
-        tex.filterMode = FilterMode.Bilinear;
-        tex.wrapMode = TextureWrapMode.Clamp;
-
-        Color32[] clear = new Color32[S * S];
-        tex.SetPixels32(clear);
-
         switch (kind)
         {
-            case TokenSpriteKind.Horse:
-                DrawHorseSilhouette(tex, S);
-                break;
-            case TokenSpriteKind.Dice:
-                DrawDiceIcon(tex, S);
-                break;
-            case TokenSpriteKind.Crown:
-                DrawCrownIcon(tex, S);
-                break;
-            case TokenSpriteKind.Star:
-                DrawStarIcon(tex, S);
-                break;
-            case TokenSpriteKind.Check:
-                DrawCheckIcon(tex, S);
-                break;
+            case TokenSpriteKind.Horse: return RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Horse);
+            case TokenSpriteKind.Dice: return RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Dice);
+            case TokenSpriteKind.Crown: return RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Crown);
+            case TokenSpriteKind.Star: return RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Star);
+            case TokenSpriteKind.Check: return RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Check);
+            default: return RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Star);
         }
-
-        tex.Apply();
-        Sprite sprite = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 48f);
-        CachedSprites[kind] = sprite;
-        return sprite;
-    }
-
-    private static void FillRect(Texture2D tex, int x0, int y0, int x1, int y1)
-    {
-        for (int y = Mathf.Max(0, y0); y <= Mathf.Min(tex.height - 1, y1); y++)
-            for (int x = Mathf.Max(0, x0); x <= Mathf.Min(tex.width - 1, x1); x++)
-                tex.SetPixel(x, y, Color.white);
-    }
-
-    private static void FillCircle(Texture2D tex, float cx, float cy, float r)
-    {
-        int minX = Mathf.Max(0, Mathf.FloorToInt(cx - r - 1));
-        int maxX = Mathf.Min(tex.width - 1, Mathf.CeilToInt(cx + r + 1));
-        int minY = Mathf.Max(0, Mathf.FloorToInt(cy - r - 1));
-        int maxY = Mathf.Min(tex.height - 1, Mathf.CeilToInt(cy + r + 1));
-
-        for (int y = minY; y <= maxY; y++)
-        {
-            for (int x = minX; x <= maxX; x++)
-            {
-                float d = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
-                if (d <= r)
-                    tex.SetPixel(x, y, Color.white);
-            }
-        }
-    }
-
-    private static void DrawThickLine(Texture2D tex, float x0, float y0, float x1, float y1, float radius)
-    {
-        int steps = Mathf.CeilToInt(Vector2.Distance(new Vector2(x0, y0), new Vector2(x1, y1)) * 2f);
-        steps = Mathf.Max(1, steps);
-        for (int i = 0; i <= steps; i++)
-        {
-            float t = i / (float)steps;
-            FillCircle(tex, Mathf.Lerp(x0, x1, t), Mathf.Lerp(y0, y1, t), radius);
-        }
-    }
-
-    private static void DrawHorseSilhouette(Texture2D tex, int s)
-    {
-        // Pedestal base
-        FillRect(tex, 10, 5, 38, 9);
-        FillRect(tex, 13, 9, 35, 13);
-        // Neck & chest body
-        DrawThickLine(tex, 20, 13, 18, 30, 6.5f);
-        DrawThickLine(tex, 27, 13, 25, 27, 5.5f);
-        // Head & snout pointing right
-        DrawThickLine(tex, 19, 30, 33, 28, 5.0f);
-        FillCircle(tex, 34, 27, 3.5f);
-        // Ears
-        DrawThickLine(tex, 18, 32, 16, 41, 2.5f);
-        DrawThickLine(tex, 22, 33, 21, 42, 2.3f);
-        // Mane ridges
-        FillCircle(tex, 14, 28, 3.2f);
-        FillCircle(tex, 14, 22, 3.2f);
-        FillCircle(tex, 15, 17, 3.2f);
-    }
-
-    private static void DrawDiceIcon(Texture2D tex, int s)
-    {
-        // Rounded square body
-        FillRect(tex, 9, 9, 39, 39);
-        // Carve 5 pips (transparent holes)
-        CarveCircle(tex, 16, 32, 3.2f);
-        CarveCircle(tex, 32, 32, 3.2f);
-        CarveCircle(tex, 24, 24, 3.4f);
-        CarveCircle(tex, 16, 16, 3.2f);
-        CarveCircle(tex, 32, 16, 3.2f);
-    }
-
-    private static void CarveCircle(Texture2D tex, float cx, float cy, float r)
-    {
-        for (int y = 0; y < tex.height; y++)
-            for (int x = 0; x < tex.width; x++)
-                if (Vector2.Distance(new Vector2(x, y), new Vector2(cx, cy)) <= r)
-                    tex.SetPixel(x, y, new Color(0, 0, 0, 0));
-    }
-
-    private static void DrawCrownIcon(Texture2D tex, int s)
-    {
-        FillRect(tex, 9, 9, 39, 15);
-        DrawThickLine(tex, 10, 15, 10, 34, 2.8f);
-        DrawThickLine(tex, 10, 34, 18, 22, 2.6f);
-        DrawThickLine(tex, 18, 22, 24, 37, 2.8f);
-        DrawThickLine(tex, 24, 37, 30, 22, 2.6f);
-        DrawThickLine(tex, 30, 22, 38, 34, 2.8f);
-        DrawThickLine(tex, 38, 34, 38, 15, 2.8f);
-        FillCircle(tex, 10, 36, 3.2f);
-        FillCircle(tex, 24, 39, 3.5f);
-        FillCircle(tex, 38, 36, 3.2f);
-    }
-
-    private static void DrawStarIcon(Texture2D tex, int s)
-    {
-        Vector2 c = new Vector2(24f, 24f);
-        for (int i = 0; i < 5; i++)
-        {
-            float a = (90f + i * 72f) * Mathf.Deg2Rad;
-            Vector2 tip = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 16f;
-            DrawThickLine(tex, c.x, c.y, tip.x, tip.y, 3.4f);
-        }
-        FillCircle(tex, 24f, 24f, 7.5f);
-    }
-
-    private static void DrawCheckIcon(Texture2D tex, int s)
-    {
-        DrawThickLine(tex, 10, 23, 20, 13, 3.8f);
-        DrawThickLine(tex, 20, 13, 38, 35, 3.8f);
     }
 
     // =========================================================================
@@ -1109,21 +1066,7 @@ public class RoyalMenuThemeStyler : MonoBehaviour
     // =========================================================================
     private static void StyleMahoganyPanel(GameObject panel, Color bgCol, Color borderCol, float borderWidth)
     {
-        Image img = panel.GetComponent<Image>();
-        if (img != null)
-            img.color = bgCol;
-
-        Outline outline = panel.GetComponent<Outline>();
-        if (outline == null)
-            outline = panel.AddComponent<Outline>();
-        outline.effectColor = borderCol;
-        outline.effectDistance = new Vector2(borderWidth, -borderWidth);
-
-        Shadow shadow = panel.GetComponent<Shadow>();
-        if (shadow == null)
-            shadow = panel.AddComponent<Shadow>();
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.72f);
-        shadow.effectDistance = new Vector2(0f, -8f);
+        RoyalUiThemeKit.ApplyLacquerPanel(panel, bgCol, borderCol, borderWidth, true);
     }
 
     private static void SetRectPositionAndSize(string objectName, Vector2 anchoredPos, Vector2 sizeDelta)
@@ -1178,15 +1121,7 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         if (input == null)
             return;
 
-        Image bg = input.GetComponent<Image>();
-        if (bg != null)
-            bg.color = WoodInset;
-
-        Outline outline = go.GetComponent<Outline>();
-        if (outline == null)
-            outline = go.AddComponent<Outline>();
-        outline.effectColor = new Color(BrassGold.r, BrassGold.g, BrassGold.b, 0.72f);
-        outline.effectDistance = new Vector2(1.5f, -1.5f);
+        RoyalUiThemeKit.ApplyRecessedSlot(go, WoodInset, new Color(BrassGold.r, BrassGold.g, BrassGold.b, 0.78f), 1.4f);
 
         MaskedPasswordInput masked = input.GetComponent<MaskedPasswordInput>();
         if (masked != null)
@@ -1227,21 +1162,8 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         if (btn == null)
             return;
 
-        Image img = go.GetComponent<Image>();
-        if (img != null)
-            img.color = bgCol;
-
-        Outline outline = go.GetComponent<Outline>();
-        if (outline == null)
-            outline = go.AddComponent<Outline>();
-        outline.effectColor = isPrimaryGold ? BrassBright : new Color(BrassGold.r, BrassGold.g, BrassGold.b, 0.68f);
-        outline.effectDistance = new Vector2(1.5f, -1.5f);
-
-        Shadow shadow = go.GetComponent<Shadow>();
-        if (shadow == null)
-            shadow = go.AddComponent<Shadow>();
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.58f);
-        shadow.effectDistance = new Vector2(0f, -3.5f);
+        Color border = isPrimaryGold ? BrassBright : new Color(BrassGold.r, BrassGold.g, BrassGold.b, 0.72f);
+        RoyalUiThemeKit.ApplyArcadeButton(go, bgCol, border, isPrimaryGold ? 1.6f : 1.3f);
 
         TMP_Text label = btn.GetComponentInChildren<TMP_Text>(true);
         if (label != null)
@@ -1259,23 +1181,56 @@ public class RoyalMenuThemeStyler : MonoBehaviour
         {
             Image iconImg = iconTr.GetComponent<Image>();
             if (iconImg != null)
+            {
+                if (objectName == "LobbyShopButton")
+                    iconImg.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.ShopStore);
+                else if (objectName == "LobbySkinsButton")
+                    iconImg.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.SkinTunic);
+
                 iconImg.color = fgCol;
+            }
+
+            if (objectName == "StartGameButton" && label != null)
+            {
+                RectTransform iconRt = iconTr.GetComponent<RectTransform>();
+                if (iconRt != null)
+                    iconRt.anchoredPosition = new Vector2(18f, 0f);
+                RectTransform lblRt = label.rectTransform;
+                if (lblRt.anchorMin == lblRt.anchorMax)
+                {
+                    lblRt.anchoredPosition = new Vector2(14f, 0f);
+                    lblRt.sizeDelta = new Vector2(164f, 48f);
+                }
+                else
+                {
+                    lblRt.offsetMin = new Vector2(34f, 0f);
+                    lblRt.offsetMax = new Vector2(-6f, 0f);
+                }
+                label.fontSize = 15.5f;
+            }
         }
 
         ColorBlock cb = btn.colors;
         cb.normalColor = Color.white;
-        cb.highlightedColor = new Color(1f, 0.96f, 0.86f, 1f);
-        cb.pressedColor = new Color(0.82f, 0.76f, 0.66f, 1f);
+        cb.highlightedColor = new Color(1f, 0.97f, 0.88f, 1f);
+        cb.pressedColor = new Color(0.84f, 0.78f, 0.68f, 1f);
         cb.selectedColor = cb.highlightedColor;
         btn.colors = cb;
 
-        AttachHoverScale(go);
+        RoyalButtonHoverEffect hover = AttachHoverScale(go);
+        if (hover != null)
+        {
+            bool pulseCta = isPrimaryGold && (objectName == "LoginButton" || objectName == "RegisterButton" || objectName == "StartGameButton");
+            hover.SetIdlePulse(pulseCta);
+        }
     }
 
-    private static void AttachHoverScale(GameObject target)
+    private static RoyalButtonHoverEffect AttachHoverScale(GameObject target)
     {
-        if (target.GetComponent<RoyalButtonHoverEffect>() == null)
-            target.AddComponent<RoyalButtonHoverEffect>();
+        RoyalButtonHoverEffect effect = target.GetComponent<RoyalButtonHoverEffect>();
+        if (effect == null)
+            effect = target.AddComponent<RoyalButtonHoverEffect>();
+        return effect;
     }
 
     private static TMP_Text CreateTmpLabel(Transform parent, string name, string text, float size, Color color, FontStyles style, TextAlignmentOptions align)
@@ -1334,7 +1289,15 @@ public class RoyalButtonHoverEffect : MonoBehaviour, IPointerEnterHandler, IPoin
     private Vector3 baseScale = Vector3.one;
     private float targetScale = 1f;
     private float currentScale = 1f;
+    private bool isHovered;
+    private bool isPressed;
+    private bool idlePulseEnabled;
     private Button cachedButton;
+
+    public void SetIdlePulse(bool enabled)
+    {
+        idlePulseEnabled = enabled;
+    }
 
     private void Awake()
     {
@@ -1352,6 +1315,8 @@ public class RoyalButtonHoverEffect : MonoBehaviour, IPointerEnterHandler, IPoin
 
     private void OnEnable()
     {
+        isHovered = false;
+        isPressed = false;
         targetScale = 1f;
         currentScale = 1f;
         transform.localScale = baseScale;
@@ -1359,7 +1324,11 @@ public class RoyalButtonHoverEffect : MonoBehaviour, IPointerEnterHandler, IPoin
 
     private void Update()
     {
-        currentScale = Mathf.Lerp(currentScale, targetScale, Time.unscaledDeltaTime * 14f);
+        float desired = targetScale;
+        if (idlePulseEnabled && !isHovered && !isPressed && (cachedButton == null || cachedButton.interactable))
+            desired = 1f + Mathf.Sin(Time.unscaledTime * 3.8f) * 0.018f;
+
+        currentScale = Mathf.Lerp(currentScale, desired, Time.unscaledDeltaTime * 14f);
         transform.localScale = baseScale * currentScale;
     }
 
@@ -1373,12 +1342,15 @@ public class RoyalButtonHoverEffect : MonoBehaviour, IPointerEnterHandler, IPoin
         if (cachedButton != null && !cachedButton.interactable)
             return;
 
+        isHovered = true;
         targetScale = 1.045f;
         BgmManager.PlayUiHover();
     }
 
     public void OnPointerExit(PointerEventData eventData)
     {
+        isHovered = false;
+        isPressed = false;
         targetScale = 1f;
     }
 
@@ -1387,11 +1359,13 @@ public class RoyalButtonHoverEffect : MonoBehaviour, IPointerEnterHandler, IPoin
         if (cachedButton != null && !cachedButton.interactable)
             return;
 
+        isPressed = true;
         targetScale = 0.955f;
     }
 
     public void OnPointerUp(PointerEventData eventData)
     {
-        targetScale = 1.045f;
+        isPressed = false;
+        targetScale = isHovered ? 1.045f : 1f;
     }
 }

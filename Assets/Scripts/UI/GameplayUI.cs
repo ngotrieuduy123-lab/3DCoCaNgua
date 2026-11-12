@@ -2,10 +2,13 @@ using System.Collections.Generic;
 using TMPro;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 public class GameplayUI : MonoBehaviour
 {
+    public static GameplayUI Instance;
+
     public TMP_Text turnText;
     public TMP_Text diceText;
     public TMP_Text messageText;
@@ -19,7 +22,7 @@ public class GameplayUI : MonoBehaviour
     string currentTurnDisplayName = "";
     bool hudConfigured;
 
-    // Shared procedural sprites for Royal Tabletop theme
+    // Shared procedural sprites for Royal Lacquer Arcade theme
     static Sprite roundedPanelSprite;
     static Sprite roundedPillSprite;
     static Sprite circlePipSprite;
@@ -58,6 +61,9 @@ public class GameplayUI : MonoBehaviour
     TMP_Text bonusSlotSub;
     Image dice1MiniBox;
     Image dice2MiniBox;
+    Image dice1QuestionOverlay;
+    Image dice2QuestionOverlay;
+    Image bonusSwordIcon;
     readonly Image[] dice1MiniPips = new Image[7];
     readonly Image[] dice2MiniPips = new Image[7];
 
@@ -68,38 +74,52 @@ public class GameplayUI : MonoBehaviour
     class PlayerCardWidgets
     {
         public GameObject root;
+        public RectTransform rootRt;
         public Image cardBg;
         public Outline cardOutline;
         public Image emblemBg;
+        public Image crownIcon;
         public TMP_Text rankText;
         public TMP_Text nameText;
         public TMP_Text statsText;
         public TMP_Text scoreText;
         public GameObject activeTurnBadge;
         public Image badgeBg;
+        public Image badgeIcon;
         public TMP_Text badgeText;
     }
 
-    // Royal Tabletop Color Palette
-    static readonly Color WoodDarkBg = new Color(0.086f, 0.067f, 0.051f, 0.94f);
-    static readonly Color WoodInnerBg = new Color(0.137f, 0.106f, 0.078f, 0.96f);
-    static readonly Color WoodActiveCardBg = new Color(0.20f, 0.15f, 0.09f, 0.98f);
-    static readonly Color GoldBorder = new Color(0.847f, 0.651f, 0.282f, 0.95f);
-    static readonly Color GoldBright = new Color(1.00f, 0.84f, 0.28f, 1.00f);
-    static readonly Color BronzeMuted = new Color(0.45f, 0.35f, 0.20f, 0.80f);
-    static readonly Color IvoryText = new Color(0.97f, 0.94f, 0.88f, 1.00f);
-    static readonly Color WarmMutedText = new Color(0.80f, 0.74f, 0.64f, 1.00f);
-    static readonly Color ActiveSlotGoldBg = new Color(0.76f, 0.52f, 0.12f, 0.98f);
-    static readonly Color ReadySlotWoodBg = new Color(0.16f, 0.125f, 0.095f, 0.96f);
-    static readonly Color DisabledSlotBg = new Color(0.09f, 0.075f, 0.06f, 0.65f);
-    static readonly Color ComboActiveBg = new Color(0.82f, 0.26f, 0.12f, 0.98f);
-    static readonly Color IvoryDieFace = new Color(0.97f, 0.94f, 0.86f, 1.00f);
-    static readonly Color DiePipDark = new Color(0.12f, 0.09f, 0.07f, 1.00f);
-    static readonly Color DiePipRed = new Color(0.82f, 0.16f, 0.16f, 1.00f);
+    // Royal Lacquer Arcade Color Palette (from RoyalUiThemeKit)
+    static Color WoodDarkBg => RoyalUiThemeKit.LacquerEbony;
+    static Color WoodInnerBg => RoyalUiThemeKit.LacquerInset;
+    static Color WoodActiveCardBg => RoyalUiThemeKit.LacquerActive;
+    static Color GoldBorder => RoyalUiThemeKit.BrassAntique;
+    static Color GoldBright => RoyalUiThemeKit.BrassBright;
+    static Color BronzeMuted => RoyalUiThemeKit.BronzeMuted;
+    static Color IvoryText => RoyalUiThemeKit.IvoryText;
+    static Color WarmMutedText => RoyalUiThemeKit.WarmMutedText;
+    static Color ActiveSlotGoldBg => RoyalUiThemeKit.ArcadeGoldCta;
+    static Color ReadySlotWoodBg => RoyalUiThemeKit.CrimsonVelvet;
+    static Color DisabledSlotBg => RoyalUiThemeKit.LacquerInset;
+    static Color ComboActiveBg => new Color(0.84f, 0.25f, 0.12f, 0.98f);
+    static readonly Color IvoryDieFace = new Color(0.98f, 0.95f, 0.87f, 1.00f);
+    static readonly Color DiePipDark = new Color(0.14f, 0.09f, 0.05f, 1.00f);
+    static readonly Color DiePipRed = new Color(0.84f, 0.16f, 0.16f, 1.00f);
 
     void Awake()
     {
+        Instance = this;
         ConfigureHudPopup();
+    }
+
+    void Update()
+    {
+        if (Keyboard.current != null && (
+            Keyboard.current.f10Key.wasPressedThisFrame ||
+            Keyboard.current.endKey.wasPressedThisFrame))
+        {
+            TriggerFastMatchFinish();
+        }
     }
 
     void Start()
@@ -107,19 +127,20 @@ public class GameplayUI : MonoBehaviour
         ConfigureHudPopup();
         StyleRoomControlPanelIfPresent();
         StyleRollButtonIntoDockIfPresent();
+        BgmManager.EnsureCreated().AttachSfxToAllSceneButtons();
     }
 
     public static Sprite GetRoundedPanelSprite()
     {
         if (roundedPanelSprite == null)
-            roundedPanelSprite = CreateRoundedSprite(64, 14);
+            roundedPanelSprite = RoyalUiThemeKit.GetLacquerPanelSprite();
         return roundedPanelSprite;
     }
 
     public static Sprite GetRoundedPillSprite()
     {
         if (roundedPillSprite == null)
-            roundedPillSprite = CreateRoundedSprite(48, 16);
+            roundedPillSprite = RoyalUiThemeKit.GetPillCapsuleSprite();
         return roundedPillSprite;
     }
 
@@ -209,7 +230,13 @@ public class GameplayUI : MonoBehaviour
                 if (isHunted)
                 {
                     card.activeTurnBadge.SetActive(true);
-                    if (card.badgeBg != null) card.badgeBg.color = new Color(0.85f, 0.15f, 0.18f, 0.98f);
+                    if (card.badgeBg != null) card.badgeBg.color = RoyalUiThemeKit.ArcadeCrimson;
+                    if (card.badgeIcon != null)
+                    {
+                        card.badgeIcon.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Crosshair);
+                        card.badgeIcon.color = Color.white;
+                        card.badgeIcon.enabled = true;
+                    }
                     if (card.badgeText != null)
                     {
                         card.badgeText.text = "TRUY NÃ";
@@ -220,10 +247,16 @@ public class GameplayUI : MonoBehaviour
                 {
                     card.activeTurnBadge.SetActive(true);
                     if (card.badgeBg != null) card.badgeBg.color = GoldBright;
+                    if (card.badgeIcon != null)
+                    {
+                        card.badgeIcon.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Lotus);
+                        card.badgeIcon.color = RoyalUiThemeKit.DarkGoldInk;
+                        card.badgeIcon.enabled = true;
+                    }
                     if (card.badgeText != null)
                     {
                         card.badgeText.text = "LƯỢT ĐI";
-                        card.badgeText.color = new Color(0.12f, 0.08f, 0.03f, 1f);
+                        card.badgeText.color = RoyalUiThemeKit.DarkGoldInk;
                     }
                 }
                 else
@@ -268,6 +301,7 @@ public class GameplayUI : MonoBehaviour
             dice1SlotTitle,
             dice1SlotSub,
             dice1MiniBox,
+            dice1QuestionOverlay,
             dice1MiniPips,
             "VIÊN 1",
             d1,
@@ -284,6 +318,7 @@ public class GameplayUI : MonoBehaviour
             dice2SlotTitle,
             dice2SlotSub,
             dice2MiniBox,
+            dice2QuestionOverlay,
             dice2MiniPips,
             "VIÊN 2",
             d2,
@@ -308,6 +343,7 @@ public class GameplayUI : MonoBehaviour
         TMP_Text titleLabel,
         TMP_Text subLabel,
         Image miniDieBox,
+        Image questionOverlay,
         Image[] pips,
         string slotTitle,
         int dieValue,
@@ -327,7 +363,7 @@ public class GameplayUI : MonoBehaviour
             if (outline != null)
             {
                 outline.effectColor = GoldBright;
-                outline.effectDistance = new Vector2(2.5f, -2.5f);
+                outline.effectDistance = new Vector2(2.4f, -2.4f);
             }
         }
         else if (isReady)
@@ -336,7 +372,7 @@ public class GameplayUI : MonoBehaviour
             if (outline != null)
             {
                 outline.effectColor = GoldBorder;
-                outline.effectDistance = new Vector2(1.5f, -1.5f);
+                outline.effectDistance = new Vector2(1.6f, -1.6f);
             }
         }
         else
@@ -344,15 +380,15 @@ public class GameplayUI : MonoBehaviour
             bg.color = DisabledSlotBg;
             if (outline != null)
             {
-                outline.effectColor = new Color(0.32f, 0.25f, 0.16f, 0.55f);
-                outline.effectDistance = new Vector2(1f, -1f);
+                outline.effectColor = BronzeMuted;
+                outline.effectDistance = new Vector2(1.1f, -1.1f);
             }
         }
 
         if (titleLabel != null)
         {
             titleLabel.text = isSelected ? $">> {slotTitle}" : slotTitle;
-            titleLabel.color = isSelected ? new Color(0.12f, 0.08f, 0.03f, 1f) : (isReady ? GoldBright : WarmMutedText);
+            titleLabel.color = isSelected ? RoyalUiThemeKit.DarkGoldInk : (isReady ? GoldBright : WarmMutedText);
         }
 
         if (subLabel != null)
@@ -364,15 +400,29 @@ public class GameplayUI : MonoBehaviour
             else
                 subLabel.text = $"{dieValue} bước";
 
-            subLabel.color = isSelected ? new Color(0.14f, 0.09f, 0.04f, 1f) : (isReady ? IvoryText : new Color(0.62f, 0.58f, 0.50f, 0.78f));
+            subLabel.color = isSelected ? RoyalUiThemeKit.DarkGoldInk : (isReady ? IvoryText : new Color(0.84f, 0.78f, 0.68f, 0.88f));
         }
 
         if (miniDieBox != null)
         {
-            miniDieBox.color = (dieValue > 0 && !isUsed)
-                ? IvoryDieFace
-                : new Color(0.82f, 0.78f, 0.70f, 0.35f);
-            SetMiniDiePips(pips, dieValue > 0 ? dieValue : 0, !isUsed);
+            bool showPips = dieValue > 0;
+            if (showPips)
+            {
+                miniDieBox.color = !isUsed ? IvoryDieFace : new Color(0.55f, 0.50f, 0.44f, 0.45f);
+                if (questionOverlay != null)
+                    questionOverlay.enabled = false;
+                SetMiniDiePips(pips, dieValue, !isUsed);
+            }
+            else
+            {
+                miniDieBox.color = new Color(0.18f, 0.12f, 0.08f, 0.92f);
+                if (questionOverlay != null)
+                {
+                    questionOverlay.enabled = true;
+                    questionOverlay.color = new Color(1f, 0.96f, 0.88f, 0.94f);
+                }
+                SetMiniDiePips(pips, 0, false);
+            }
         }
     }
 
@@ -385,7 +435,7 @@ public class GameplayUI : MonoBehaviour
 
         if (isSelected || bonusReady)
         {
-            bonusSlotBg.color = isSelected ? ComboActiveBg : new Color(0.58f, 0.20f, 0.10f, 0.95f);
+            bonusSlotBg.color = isSelected ? ComboActiveBg : new Color(0.62f, 0.20f, 0.10f, 0.98f);
             if (bonusSlotOutline != null)
             {
                 bonusSlotOutline.effectColor = GoldBright;
@@ -397,15 +447,22 @@ public class GameplayUI : MonoBehaviour
             bonusSlotBg.color = DisabledSlotBg;
             if (bonusSlotOutline != null)
             {
-                bonusSlotOutline.effectColor = new Color(0.32f, 0.25f, 0.16f, 0.55f);
-                bonusSlotOutline.effectDistance = new Vector2(1f, -1f);
+                bonusSlotOutline.effectColor = BronzeMuted;
+                bonusSlotOutline.effectDistance = new Vector2(1.1f, -1.1f);
             }
+        }
+
+        if (bonusSwordIcon != null)
+        {
+            bonusSwordIcon.color = (bonusReady || isSelected)
+                ? Color.white
+                : new Color(1f, 0.88f, 0.72f, 0.78f);
         }
 
         if (bonusSlotTitle != null)
         {
             bonusSlotTitle.text = bonusReady ? ">> COMBO +3" : "COMBO +3";
-            bonusSlotTitle.color = bonusReady ? GoldBright : WarmMutedText;
+            bonusSlotTitle.color = bonusReady ? GoldBright : IvoryText;
         }
 
         if (bonusSlotSub != null)
@@ -415,9 +472,9 @@ public class GameplayUI : MonoBehaviour
             else if (bonusReady)
                 bonusSlotSub.text = "Đi +3 bước!";
             else
-                bonusSlotSub.text = "Đá địch để mở";
+                bonusSlotSub.text = "Đá địch mở";
 
-            bonusSlotSub.color = bonusReady ? IvoryText : new Color(0.62f, 0.58f, 0.50f, 0.75f);
+            bonusSlotSub.color = bonusReady ? IvoryText : new Color(0.84f, 0.78f, 0.68f, 0.88f);
         }
     }
 
@@ -467,9 +524,9 @@ public class GameplayUI : MonoBehaviour
 
         if (feedBoxRect != null && leftScoreboardColumn != null)
         {
-            float feedY = -44f - (playerCount * 76f) - 6f;
+            float feedY = -48f - (playerCount * 78f) - 10f;
             feedBoxRect.anchoredPosition = new Vector2(0f, feedY);
-            leftScoreboardColumn.sizeDelta = new Vector2(336f, Mathf.Abs(feedY) + 54f);
+            leftScoreboardColumn.sizeDelta = new Vector2(356f, Mathf.Abs(feedY) + 56f);
         }
 
         int[] rankOrder = board.GetSortedRankingOrder(playerCount);
@@ -494,12 +551,27 @@ public class GameplayUI : MonoBehaviour
             if (!activeInMatch)
                 continue;
 
+            int rank = Mathf.Max(1, playerRank[i]);
+            float rankY = -48f - (rank - 1) * 78f;
+            if (card.rootRt != null)
+                card.rootRt.anchoredPosition = new Vector2(0f, rankY);
+
             string pName = GetSafeDisplayName(i, PlayerPrefs.GetString("TurnDisplayName_" + i, ""));
-            string youBadge = (localPlayerIndex == i) ? " <size=80%><color=#8AE6FF>[BẠN]</color></size>" : "";
+            string youBadge = (localPlayerIndex == i) ? " <color=#8AE6FF>[BẠN]</color>" : "";
             bool isHuntedTarget = board.activeEvent == PartyEventType.BountyHunt && board.bountyTargetPlayer == i;
 
+            if (card.crownIcon != null)
+                card.crownIcon.enabled = rank == 1;
+
+            if (card.emblemBg != null)
+                card.emblemBg.color = rank == 1 ? new Color(0.84f, 0.60f, 0.14f, 0.98f) : GetPlayerColor(i);
+
             if (card.rankText != null)
-                card.rankText.text = $"#{Mathf.Max(1, playerRank[i])}";
+            {
+                card.rankText.text = $"#{rank}";
+                card.rankText.color = rank == 1 ? RoyalUiThemeKit.DarkGoldInk : Color.white;
+                card.rankText.rectTransform.anchoredPosition = rank == 1 ? new Vector2(0f, -6f) : Vector2.zero;
+            }
 
             if (card.nameText != null)
                 card.nameText.text = $"{pName}{youBadge}";
@@ -533,7 +605,13 @@ public class GameplayUI : MonoBehaviour
                 if (isHuntedTarget)
                 {
                     card.activeTurnBadge.SetActive(true);
-                    if (card.badgeBg != null) card.badgeBg.color = new Color(0.85f, 0.15f, 0.18f, 0.98f);
+                    if (card.badgeBg != null) card.badgeBg.color = RoyalUiThemeKit.ArcadeCrimson;
+                    if (card.badgeIcon != null)
+                    {
+                        card.badgeIcon.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Crosshair);
+                        card.badgeIcon.color = Color.white;
+                        card.badgeIcon.enabled = true;
+                    }
                     if (card.badgeText != null)
                     {
                         card.badgeText.text = "TRUY NÃ";
@@ -544,10 +622,16 @@ public class GameplayUI : MonoBehaviour
                 {
                     card.activeTurnBadge.SetActive(true);
                     if (card.badgeBg != null) card.badgeBg.color = GoldBright;
+                    if (card.badgeIcon != null)
+                    {
+                        card.badgeIcon.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Lotus);
+                        card.badgeIcon.color = RoyalUiThemeKit.DarkGoldInk;
+                        card.badgeIcon.enabled = true;
+                    }
                     if (card.badgeText != null)
                     {
                         card.badgeText.text = "LƯỢT ĐI";
-                        card.badgeText.color = new Color(0.12f, 0.08f, 0.03f, 1f);
+                        card.badgeText.color = RoyalUiThemeKit.DarkGoldInk;
                     }
                 }
                 else
@@ -659,6 +743,7 @@ public class GameplayUI : MonoBehaviour
         CreateTopCenterRoyalBanner(canvasRect);
         CreateLeftPlayerCardsColumn(canvasRect);
         CreateBottomRightDiceDock(canvasRect);
+        RoyalUiThemeKit.BuildHelpGuideButton(canvasRect, new Vector2(1f, 1f), new Vector2(-18f, -84f), 42f);
 
         hudConfigured = true;
         RenderTurnHeader();
@@ -677,15 +762,10 @@ public class GameplayUI : MonoBehaviour
         topCenterBanner.anchorMax = new Vector2(0.5f, 1f);
         topCenterBanner.pivot = new Vector2(0.5f, 1f);
         topCenterBanner.anchoredPosition = new Vector2(20f, -10f);
-        topCenterBanner.sizeDelta = new Vector2(700f, 102f);
+        topCenterBanner.sizeDelta = new Vector2(704f, 104f);
 
-        Image bannerBg = bannerObj.AddComponent<Image>();
-        bannerBg.sprite = GetRoundedPanelSprite();
-        bannerBg.type = Image.Type.Sliced;
-        bannerBg.color = WoodDarkBg;
-        bannerBg.raycastTarget = false;
-
-        AddRoyalFrame(bannerObj, GoldBorder, new Vector2(2f, -2f));
+        RoyalUiThemeKit.ApplyLacquerPanel(bannerObj, WoodDarkBg, GoldBorder, 2.0f, true);
+        bannerObj.GetComponent<Image>().raycastTarget = false;
 
         // Left pill: Match Clock (10:00)
         GameObject clockPill = CreateRoundedSubPanel(
@@ -693,36 +773,38 @@ public class GameplayUI : MonoBehaviour
             "MatchClockPill",
             new Vector2(0f, 1f),
             new Vector2(12f, -8f),
-            new Vector2(120f, 32f),
+            new Vector2(122f, 34f),
             WoodInnerBg,
             BronzeMuted
         );
+        clockPill.GetComponent<Image>().sprite = RoyalUiThemeKit.GetRecessedSlotSprite();
         matchClockText = CreateLabel(
             clockPill.GetComponent<RectTransform>(),
             "MatchClockLabel",
             Vector2.zero,
-            new Vector2(120f, 32f),
-            15f,
+            new Vector2(122f, 34f),
+            14.5f,
             FontStyles.Bold,
             GoldBright,
             TextAlignmentOptions.Center
         );
 
-        // Center pill: Active Player Turn (470px wide, plenty of room!)
+        // Center ribbon plaque: Active Player Turn (Navy Arcade Ribbon + Brass Rim)
         GameObject turnPill = CreateRoundedSubPanel(
             topCenterBanner,
             "TurnCrestPill",
             new Vector2(0f, 1f),
-            new Vector2(140f, -8f),
-            new Vector2(470f, 32f),
-            WoodInnerBg,
+            new Vector2(142f, -8f),
+            new Vector2(468f, 34f),
+            RoyalUiThemeKit.NavyRibbon,
             GoldBorder
         );
+        turnPill.GetComponent<Image>().sprite = RoyalUiThemeKit.GetRibbonHeaderSprite();
         turnHeaderText = CreateLabel(
             turnPill.GetComponent<RectTransform>(),
             "TurnHeaderLabel",
             Vector2.zero,
-            new Vector2(470f, 32f),
+            new Vector2(468f, 34f),
             16f,
             FontStyles.Bold,
             IvoryText,
@@ -734,22 +816,23 @@ public class GameplayUI : MonoBehaviour
         turnHeaderText.textWrappingMode = TextWrappingModes.NoWrap;
         turnHeaderText.overflowMode = TextOverflowModes.Ellipsis;
 
-        // Right pill: Turn Countdown (20s)
+        // Right medallion pill: Turn Countdown (20s)
         GameObject timerPill = CreateRoundedSubPanel(
             topCenterBanner,
             "TurnTimerPill",
             new Vector2(0f, 1f),
             new Vector2(618f, -8f),
-            new Vector2(70f, 32f),
-            WoodInnerBg,
-            BronzeMuted
+            new Vector2(74f, 34f),
+            RoyalUiThemeKit.CrimsonVelvet,
+            GoldBright
         );
+        timerPill.GetComponent<Image>().sprite = RoyalUiThemeKit.GetPillCapsuleSprite();
         turnCountdownPillBg = timerPill.GetComponent<Image>();
         turnCountdownText = CreateLabel(
             timerPill.GetComponent<RectTransform>(),
             "TurnCountdownLabel",
             Vector2.zero,
-            new Vector2(70f, 32f),
+            new Vector2(74f, 34f),
             17f,
             FontStyles.Bold,
             GoldBright,
@@ -760,8 +843,8 @@ public class GameplayUI : MonoBehaviour
         eventBannerText = CreateLabel(
             topCenterBanner,
             "EventBannerText",
-            new Vector2(14f, -44f),
-            new Vector2(672f, 24f),
+            new Vector2(14f, -45f),
+            new Vector2(676f, 24f),
             13.5f,
             FontStyles.Bold,
             GoldBright,
@@ -778,8 +861,8 @@ public class GameplayUI : MonoBehaviour
         msgRt.anchorMin = new Vector2(0f, 1f);
         msgRt.anchorMax = new Vector2(0f, 1f);
         msgRt.pivot = new Vector2(0f, 1f);
-        msgRt.anchoredPosition = new Vector2(14f, -70f);
-        msgRt.sizeDelta = new Vector2(672f, 24f);
+        msgRt.anchoredPosition = new Vector2(14f, -71f);
+        msgRt.sizeDelta = new Vector2(676f, 24f);
         messageText.fontSize = 14f;
         messageText.enableAutoSizing = true;
         messageText.fontSizeMin = 11.5f;
@@ -803,23 +886,24 @@ public class GameplayUI : MonoBehaviour
         leftScoreboardColumn.anchorMax = new Vector2(0f, 1f);
         leftScoreboardColumn.pivot = new Vector2(0f, 1f);
         leftScoreboardColumn.anchoredPosition = new Vector2(16f, -12f);
-        leftScoreboardColumn.sizeDelta = new Vector2(336f, 260f);
+        leftScoreboardColumn.sizeDelta = new Vector2(356f, 270f);
 
-        // Header plate
+        // Header Ribbon Plate
         GameObject headerPlate = CreateRoundedSubPanel(
             leftScoreboardColumn,
             "ScoreboardHeaderPlate",
             new Vector2(0f, 1f),
             new Vector2(0f, 0f),
-            new Vector2(336f, 36f),
-            WoodDarkBg,
+            new Vector2(356f, 38f),
+            RoyalUiThemeKit.CrimsonVelvet,
             GoldBorder
         );
+        headerPlate.GetComponent<Image>().sprite = RoyalUiThemeKit.GetRibbonHeaderSprite();
         CreateLabel(
             headerPlate.GetComponent<RectTransform>(),
             "HeaderTitle",
             Vector2.zero,
-            new Vector2(336f, 36f),
+            new Vector2(356f, 38f),
             15.5f,
             FontStyles.Bold,
             GoldBright,
@@ -828,31 +912,35 @@ public class GameplayUI : MonoBehaviour
 
         for (int i = 0; i < 4; i++)
         {
-            float yOffset = -44f - i * 76f;
+            float yOffset = -48f - i * 78f;
             playerCards[i] = CreateSinglePlayerCard(leftScoreboardColumn, i, new Vector2(0f, yOffset));
         }
 
-        // Action Feed Strip at the bottom of the column
+        // Parchment Scroll Action Feed Strip at the bottom of the column
         GameObject feedBox = CreateRoundedSubPanel(
             leftScoreboardColumn,
             "RoyalActionFeedBox",
             new Vector2(0f, 1f),
-            new Vector2(0f, -202f),
-            new Vector2(336f, 50f),
-            WoodDarkBg,
-            BronzeMuted
+            new Vector2(0f, -214f),
+            new Vector2(356f, 52f),
+            RoyalUiThemeKit.ParchmentFill,
+            new Color(0.56f, 0.36f, 0.14f, 0.96f)
         );
+        feedBox.GetComponent<Image>().sprite = RoyalUiThemeKit.GetParchmentScrollSprite();
         feedBoxRect = feedBox.GetComponent<RectTransform>();
         feedText = CreateLabel(
             feedBox.GetComponent<RectTransform>(),
             "ActionFeedText",
-            new Vector2(10f, -5f),
-            new Vector2(316f, 40f),
+            new Vector2(12f, -4f),
+            new Vector2(332f, 44f),
             12.5f,
-            FontStyles.Italic,
-            WarmMutedText,
+            FontStyles.Bold,
+            RoyalUiThemeKit.ParchmentInk,
             TextAlignmentOptions.MidlineLeft
         );
+        feedText.enableAutoSizing = true;
+        feedText.fontSizeMin = 10.5f;
+        feedText.fontSizeMax = 12.5f;
         feedText.textWrappingMode = TextWrappingModes.Normal;
         feedText.text = "Mẹo: Đạp Ô Tăng Tốc (+3 bước) | Qua bước 28 (+1đ & thành Tinh Nhuệ)";
     }
@@ -866,80 +954,131 @@ public class GameplayUI : MonoBehaviour
             $"RoyalPlayerCard_{playerIndex}",
             new Vector2(0f, 1f),
             anchoredPos,
-            new Vector2(336f, 68f),
+            new Vector2(356f, 70f),
             WoodDarkBg,
             BronzeMuted
         );
+        w.rootRt = w.root.GetComponent<RectTransform>();
         w.cardBg = w.root.GetComponent<Image>();
         w.cardOutline = w.root.GetComponent<Outline>();
 
-        RectTransform cardRt = w.root.GetComponent<RectTransform>();
+        RectTransform cardRt = w.rootRt;
 
-        // Left Color Crest Emblem (48x48)
+        // Left Faction Identity Stripe (6px)
+        GameObject stripeObj = new GameObject("FactionStripe", typeof(RectTransform), typeof(Image));
+        stripeObj.layer = turnText.gameObject.layer;
+        stripeObj.transform.SetParent(cardRt, false);
+        RectTransform stripeRt = stripeObj.GetComponent<RectTransform>();
+        stripeRt.anchorMin = new Vector2(0f, 0.12f);
+        stripeRt.anchorMax = new Vector2(0f, 0.88f);
+        stripeRt.pivot = new Vector2(0f, 0.5f);
+        stripeRt.anchoredPosition = new Vector2(5f, 0f);
+        stripeRt.sizeDelta = new Vector2(5f, 0f);
+        Image stripeImg = stripeObj.GetComponent<Image>();
+        stripeImg.sprite = RoyalUiThemeKit.GetPillCapsuleSprite();
+        stripeImg.type = Image.Type.Sliced;
+        stripeImg.color = GetPlayerColor(playerIndex);
+        stripeImg.raycastTarget = false;
+
+        // Rank Medallion Crest (46x46)
         GameObject emblemObj = CreateRoundedSubPanel(
             cardRt,
             "FactionEmblem",
             new Vector2(0f, 1f),
-            new Vector2(8f, -10f),
-            new Vector2(48f, 48f),
+            new Vector2(14f, -12f),
+            new Vector2(46f, 46f),
             GetPlayerColor(playerIndex),
             GoldBorder
         );
+        emblemObj.GetComponent<Image>().sprite = RoyalUiThemeKit.GetCircleMedallionSprite();
+        emblemObj.GetComponent<Image>().type = Image.Type.Simple;
         w.emblemBg = emblemObj.GetComponent<Image>();
+
+        GameObject crownObj = new GameObject("CrownIcon", typeof(RectTransform), typeof(Image));
+        crownObj.layer = turnText.gameObject.layer;
+        crownObj.transform.SetParent(emblemObj.transform, false);
+        RectTransform crRt = crownObj.GetComponent<RectTransform>();
+        crRt.anchorMin = crRt.anchorMax = new Vector2(0.5f, 1f);
+        crRt.pivot = new Vector2(0.5f, 1f);
+        crRt.anchoredPosition = new Vector2(0f, -2f);
+        crRt.sizeDelta = new Vector2(16f, 12f);
+        w.crownIcon = crownObj.GetComponent<Image>();
+        w.crownIcon.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Crown);
+        w.crownIcon.preserveAspect = true;
+        w.crownIcon.color = RoyalUiThemeKit.DarkGoldInk;
+        w.crownIcon.raycastTarget = false;
+        w.crownIcon.enabled = false;
+
         w.rankText = CreateLabel(
             emblemObj.GetComponent<RectTransform>(),
             "RankLabel",
             Vector2.zero,
-            new Vector2(48f, 48f),
-            18f,
+            new Vector2(46f, 46f),
+            15f,
             FontStyles.Bold,
             Color.white,
             TextAlignmentOptions.Center
         );
         w.rankText.text = $"#{playerIndex + 1}";
 
-        // Player Name (fits within x = 64..184, width = 120f)
+        // Player Name (fits cleanly beside wider status pill)
         w.nameText = CreateLabel(
             cardRt,
             "PlayerNameLabel",
-            new Vector2(64f, -11f),
-            new Vector2(120f, 24f),
-            15f,
+            new Vector2(66f, -10f),
+            new Vector2(134f, 24f),
+            14.5f,
             FontStyles.Bold,
             IvoryText,
             TextAlignmentOptions.MidlineLeft
         );
         w.nameText.enableAutoSizing = true;
-        w.nameText.fontSizeMin = 11f;
-        w.nameText.fontSizeMax = 15f;
+        w.nameText.fontSizeMin = 12f;
+        w.nameText.fontSizeMax = 14.5f;
         w.nameText.textWrappingMode = TextWrappingModes.NoWrap;
         w.nameText.overflowMode = TextOverflowModes.Ellipsis;
         w.nameText.text = GetSafeDisplayName(playerIndex, "");
 
-        // Status Pill (x = 188..250, width = 62f, height = 22f)
+        // Status Pill (x = 202..276, width = 74f, height = 22f) with Lotus / Crosshair emblem
         w.activeTurnBadge = CreateRoundedSubPanel(
             cardRt,
             "PlayerStatusPill",
             new Vector2(0f, 1f),
-            new Vector2(188f, -11f),
-            new Vector2(62f, 22f),
+            new Vector2(202f, -11f),
+            new Vector2(74f, 22f),
             GoldBright,
             GoldBorder
         );
+        w.activeTurnBadge.GetComponent<Image>().sprite = RoyalUiThemeKit.GetPillCapsuleSprite();
         w.badgeBg = w.activeTurnBadge.GetComponent<Image>();
+
+        GameObject bIconObj = new GameObject("BadgeIcon", typeof(RectTransform), typeof(Image));
+        bIconObj.layer = turnText.gameObject.layer;
+        bIconObj.transform.SetParent(w.activeTurnBadge.transform, false);
+        RectTransform biRt = bIconObj.GetComponent<RectTransform>();
+        biRt.anchorMin = biRt.anchorMax = new Vector2(0f, 0.5f);
+        biRt.pivot = new Vector2(0f, 0.5f);
+        biRt.anchoredPosition = new Vector2(5f, 0f);
+        biRt.sizeDelta = new Vector2(12f, 12f);
+        w.badgeIcon = bIconObj.GetComponent<Image>();
+        w.badgeIcon.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.Lotus);
+        w.badgeIcon.preserveAspect = true;
+        w.badgeIcon.color = RoyalUiThemeKit.DarkGoldInk;
+        w.badgeIcon.raycastTarget = false;
+
         w.badgeText = CreateLabel(
             w.activeTurnBadge.GetComponent<RectTransform>(),
             "BadgeLabel",
-            Vector2.zero,
-            new Vector2(62f, 22f),
-            10.5f,
+            new Vector2(18f, 0f),
+            new Vector2(52f, 22f),
+            9.5f,
             FontStyles.Bold,
-            new Color(0.12f, 0.08f, 0.03f, 1f),
+            RoyalUiThemeKit.DarkGoldInk,
             TextAlignmentOptions.Center
         );
         w.badgeText.enableAutoSizing = true;
-        w.badgeText.fontSizeMin = 8.5f;
-        w.badgeText.fontSizeMax = 11f;
+        w.badgeText.fontSizeMin = 8f;
+        w.badgeText.fontSizeMax = 10f;
         w.badgeText.textWrappingMode = TextWrappingModes.NoWrap;
         w.badgeText.text = "LƯỢT ĐI";
         w.activeTurnBadge.SetActive(false);
@@ -948,8 +1087,8 @@ public class GameplayUI : MonoBehaviour
         w.statsText = CreateLabel(
             cardRt,
             "PlayerStatsLabel",
-            new Vector2(64f, -37f),
-            new Vector2(186f, 22f),
+            new Vector2(66f, -38f),
+            new Vector2(204f, 22f),
             12.5f,
             FontStyles.Normal,
             WarmMutedText,
@@ -957,22 +1096,23 @@ public class GameplayUI : MonoBehaviour
         );
         w.statsText.text = "Về đích: <b>0</b>   |   Đá hạ: <b>0</b>";
 
-        // Right Recessed Score Box (70x48)
+        // Right Recessed Score Box (66x48)
         GameObject scoreBox = CreateRoundedSubPanel(
             cardRt,
             "ScoreBox",
             new Vector2(0f, 1f),
-            new Vector2(256f, -10f),
-            new Vector2(70f, 48f),
+            new Vector2(280f, -11f),
+            new Vector2(66f, 48f),
             WoodInnerBg,
             GoldBorder
         );
+        scoreBox.GetComponent<Image>().sprite = RoyalUiThemeKit.GetRecessedSlotSprite();
         w.scoreText = CreateLabel(
             scoreBox.GetComponent<RectTransform>(),
             "ScoreValueLabel",
             Vector2.zero,
-            new Vector2(70f, 48f),
-            20f,
+            new Vector2(66f, 48f),
+            19.5f,
             FontStyles.Bold,
             GoldBright,
             TextAlignmentOptions.Center
@@ -993,17 +1133,24 @@ public class GameplayUI : MonoBehaviour
         diceDockPanel.anchorMax = new Vector2(1f, 0f);
         diceDockPanel.pivot = new Vector2(1f, 0f);
         diceDockPanel.anchoredPosition = new Vector2(-18f, 18f);
-        diceDockPanel.sizeDelta = new Vector2(436f, 168f);
+        diceDockPanel.sizeDelta = new Vector2(440f, 174f);
 
-        Image dockBg = dockObj.AddComponent<Image>();
-        dockBg.sprite = GetRoundedPanelSprite();
-        dockBg.type = Image.Type.Sliced;
-        dockBg.color = WoodDarkBg;
-        dockBg.raycastTarget = false;
+        RoyalUiThemeKit.ApplyLacquerPanel(dockObj, WoodDarkBg, GoldBorder, 2.0f, true);
+        dockObj.GetComponent<Image>().raycastTarget = false;
 
-        AddRoyalFrame(dockObj, GoldBorder, new Vector2(2f, -2f));
+        // Inner Crimson Velvet Dice Tray recess behind slots
+        GameObject velvetTray = CreateRoundedSubPanel(
+            diceDockPanel,
+            "VelvetDiceTray",
+            new Vector2(0f, 1f),
+            new Vector2(10f, -10f),
+            new Vector2(420f, 84f),
+            RoyalUiThemeKit.CrimsonVelvet,
+            BronzeMuted
+        );
+        velvetTray.GetComponent<Image>().sprite = RoyalUiThemeKit.GetRecessedSlotSprite();
 
-        // Action Slots Row inside the top of the dock
+        // Action Slots Row inside the velvet tray
         GameObject barObject = new GameObject("PartyClashActionSlots");
         barObject.layer = turnText.gameObject.layer;
         barObject.transform.SetParent(diceDockPanel, false);
@@ -1012,8 +1159,8 @@ public class GameplayUI : MonoBehaviour
         actionSlotPanel.anchorMin = new Vector2(0f, 1f);
         actionSlotPanel.anchorMax = new Vector2(0f, 1f);
         actionSlotPanel.pivot = new Vector2(0f, 1f);
-        actionSlotPanel.anchoredPosition = new Vector2(12f, -12f);
-        actionSlotPanel.sizeDelta = new Vector2(412f, 76f);
+        actionSlotPanel.anchoredPosition = new Vector2(14f, -15f);
+        actionSlotPanel.sizeDelta = new Vector2(412f, 74f);
 
         dice1SlotButton = CreateVisualDieSlotButton(
             actionSlotPanel,
@@ -1025,6 +1172,7 @@ public class GameplayUI : MonoBehaviour
             out dice1SlotTitle,
             out dice1SlotSub,
             out dice1MiniBox,
+            out dice1QuestionOverlay,
             dice1MiniPips,
             () => OnActionSlotClicked(TurnActionSlot.Dice1)
         );
@@ -1039,6 +1187,7 @@ public class GameplayUI : MonoBehaviour
             out dice2SlotTitle,
             out dice2SlotSub,
             out dice2MiniBox,
+            out dice2QuestionOverlay,
             dice2MiniPips,
             () => OnActionSlotClicked(TurnActionSlot.Dice2)
         );
@@ -1052,6 +1201,7 @@ public class GameplayUI : MonoBehaviour
             out bonusSlotOutline,
             out bonusSlotTitle,
             out bonusSlotSub,
+            out bonusSwordIcon,
             () => OnActionSlotClicked(TurnActionSlot.Bonus3)
         );
     }
@@ -1066,6 +1216,7 @@ public class GameplayUI : MonoBehaviour
         out TMP_Text titleLabel,
         out TMP_Text subLabel,
         out Image miniDieBox,
+        out Image questionOverlay,
         Image[] pips,
         UnityEngine.Events.UnityAction onClick)
     {
@@ -1080,24 +1231,17 @@ public class GameplayUI : MonoBehaviour
         rt.anchoredPosition = anchoredPos;
         rt.sizeDelta = size;
 
-        bgImage = btnObj.AddComponent<Image>();
-        bgImage.sprite = GetRoundedPanelSprite();
-        bgImage.type = Image.Type.Sliced;
-        bgImage.color = DisabledSlotBg;
-
-        outline = btnObj.AddComponent<Outline>();
-        outline.effectColor = BronzeMuted;
-        outline.effectDistance = new Vector2(1.5f, -1.5f);
-
-        Shadow shadow = btnObj.AddComponent<Shadow>();
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
-        shadow.effectDistance = new Vector2(0f, -3f);
+        RoyalUiThemeKit.ApplyArcadeButton(btnObj, DisabledSlotBg, BronzeMuted, 1.4f);
+        bgImage = btnObj.GetComponent<Image>();
+        outline = btnObj.GetComponent<Outline>();
 
         Button btn = btnObj.AddComponent<Button>();
         btn.targetGraphic = bgImage;
         btn.onClick.AddListener(onClick);
+        if (btnObj.GetComponent<RoyalButtonHoverEffect>() == null)
+            btnObj.AddComponent<RoyalButtonHoverEffect>();
 
-        // Mini Ivory Die Face on the left (48x48)
+        // Mini Ivory Die Face on the left (46x46)
         GameObject dieObj = new GameObject("MiniDieFace");
         dieObj.layer = turnText.gameObject.layer;
         dieObj.transform.SetParent(rt, false);
@@ -1106,14 +1250,28 @@ public class GameplayUI : MonoBehaviour
         dieRt.anchorMin = new Vector2(0f, 0.5f);
         dieRt.anchorMax = new Vector2(0f, 0.5f);
         dieRt.pivot = new Vector2(0f, 0.5f);
-        dieRt.anchoredPosition = new Vector2(8f, 0f);
+        dieRt.anchoredPosition = new Vector2(7f, 1f);
         dieRt.sizeDelta = new Vector2(46f, 46f);
 
         miniDieBox = dieObj.AddComponent<Image>();
-        miniDieBox.sprite = GetRoundedPanelSprite();
+        miniDieBox.sprite = RoyalUiThemeKit.GetRecessedSlotSprite();
         miniDieBox.type = Image.Type.Sliced;
-        miniDieBox.color = new Color(0.82f, 0.78f, 0.70f, 0.35f);
+        miniDieBox.color = new Color(0.18f, 0.12f, 0.08f, 0.92f);
         miniDieBox.raycastTarget = false;
+
+        // Crisp 3D '?' Die Icon visible when waiting to roll
+        GameObject qObj = new GameObject("WaitingDieQuestionIcon", typeof(RectTransform), typeof(Image));
+        qObj.layer = turnText.gameObject.layer;
+        qObj.transform.SetParent(dieRt, false);
+        RectTransform qRt = qObj.GetComponent<RectTransform>();
+        qRt.anchorMin = Vector2.zero;
+        qRt.anchorMax = Vector2.one;
+        qRt.offsetMin = new Vector2(2f, 2f);
+        qRt.offsetMax = new Vector2(-2f, -2f);
+        questionOverlay = qObj.GetComponent<Image>();
+        questionOverlay.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.DieQuestion);
+        questionOverlay.preserveAspect = true;
+        questionOverlay.raycastTarget = false;
 
         Vector2[] pipOffsets =
         {
@@ -1146,8 +1304,8 @@ public class GameplayUI : MonoBehaviour
         titleLabel = CreateLabel(
             rt,
             "SlotTitle",
-            new Vector2(60f, -12f),
-            new Vector2(68f, 24f),
+            new Vector2(58f, -12f),
+            new Vector2(70f, 24f),
             13.5f,
             FontStyles.Bold,
             GoldBright,
@@ -1157,9 +1315,9 @@ public class GameplayUI : MonoBehaviour
         subLabel = CreateLabel(
             rt,
             "SlotSub",
-            new Vector2(60f, -38f),
-            new Vector2(68f, 24f),
-            13f,
+            new Vector2(58f, -38f),
+            new Vector2(70f, 24f),
+            12.5f,
             FontStyles.Bold,
             IvoryText,
             TextAlignmentOptions.MidlineLeft
@@ -1177,6 +1335,7 @@ public class GameplayUI : MonoBehaviour
         out Outline outline,
         out TMP_Text titleLabel,
         out TMP_Text subLabel,
+        out Image swordIcon,
         UnityEngine.Events.UnityAction onClick)
     {
         GameObject btnObj = new GameObject(name);
@@ -1190,44 +1349,57 @@ public class GameplayUI : MonoBehaviour
         rt.anchoredPosition = anchoredPos;
         rt.sizeDelta = size;
 
-        bgImage = btnObj.AddComponent<Image>();
-        bgImage.sprite = GetRoundedPanelSprite();
-        bgImage.type = Image.Type.Sliced;
-        bgImage.color = DisabledSlotBg;
-
-        outline = btnObj.AddComponent<Outline>();
-        outline.effectColor = BronzeMuted;
-        outline.effectDistance = new Vector2(1.5f, -1.5f);
-
-        Shadow shadow = btnObj.AddComponent<Shadow>();
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
-        shadow.effectDistance = new Vector2(0f, -3f);
+        RoyalUiThemeKit.ApplyArcadeButton(btnObj, DisabledSlotBg, BronzeMuted, 1.4f);
+        bgImage = btnObj.GetComponent<Image>();
+        outline = btnObj.GetComponent<Outline>();
 
         Button btn = btnObj.AddComponent<Button>();
         btn.targetGraphic = bgImage;
         btn.onClick.AddListener(onClick);
+        if (btnObj.GetComponent<RoyalButtonHoverEffect>() == null)
+            btnObj.AddComponent<RoyalButtonHoverEffect>();
+
+        // Left Flame Sword Crest (38x38)
+        GameObject iconObj = new GameObject("FlameSwordCrest", typeof(RectTransform), typeof(Image));
+        iconObj.layer = turnText.gameObject.layer;
+        iconObj.transform.SetParent(rt, false);
+        RectTransform iRt = iconObj.GetComponent<RectTransform>();
+        iRt.anchorMin = iRt.anchorMax = new Vector2(0f, 0.5f);
+        iRt.pivot = new Vector2(0f, 0.5f);
+        iRt.anchoredPosition = new Vector2(6f, 1f);
+        iRt.sizeDelta = new Vector2(38f, 38f);
+        swordIcon = iconObj.GetComponent<Image>();
+        swordIcon.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.FlameSword);
+        swordIcon.preserveAspect = true;
+        swordIcon.raycastTarget = false;
 
         titleLabel = CreateLabel(
             rt,
             "BonusTitle",
-            new Vector2(8f, -12f),
-            new Vector2(116f, 26f),
-            14f,
+            new Vector2(46f, -12f),
+            new Vector2(82f, 24f),
+            12.5f,
             FontStyles.Bold,
             GoldBright,
-            TextAlignmentOptions.Center
+            TextAlignmentOptions.MidlineLeft
         );
+        titleLabel.enableAutoSizing = true;
+        titleLabel.fontSizeMin = 10f;
+        titleLabel.fontSizeMax = 12.5f;
 
         subLabel = CreateLabel(
             rt,
             "BonusSub",
-            new Vector2(8f, -38f),
-            new Vector2(116f, 24f),
-            12.5f,
+            new Vector2(46f, -38f),
+            new Vector2(82f, 24f),
+            12f,
             FontStyles.Bold,
             WarmMutedText,
-            TextAlignmentOptions.Center
+            TextAlignmentOptions.MidlineLeft
         );
+        subLabel.enableAutoSizing = true;
+        subLabel.fontSizeMin = 9.5f;
+        subLabel.fontSizeMax = 12f;
 
         return btn;
     }
@@ -1285,34 +1457,22 @@ public class GameplayUI : MonoBehaviour
             rt.anchorMin = new Vector2(1f, 0f);
             rt.anchorMax = new Vector2(1f, 0f);
             rt.pivot = new Vector2(1f, 0f);
-            rt.anchoredPosition = new Vector2(-30f, 30f);
-            rt.sizeDelta = new Vector2(412f, 56f);
+            rt.anchoredPosition = new Vector2(-32f, 29f);
+            rt.sizeDelta = new Vector2(412f, 52f);
             rt.SetAsLastSibling();
         }
 
-        Image btnImg = netRollObj.GetComponent<Image>();
-        if (btnImg != null)
-        {
-            btnImg.sprite = GetRoundedPanelSprite();
-            btnImg.type = Image.Type.Sliced;
-            btnImg.color = new Color(0.88f, 0.64f, 0.16f, 1f);
-        }
-
-        Outline outline = netRollObj.GetComponent<Outline>() ?? netRollObj.AddComponent<Outline>();
-        outline.effectColor = new Color(1f, 0.92f, 0.55f, 1f);
-        outline.effectDistance = new Vector2(2f, -2f);
-
-        Shadow shadow = netRollObj.GetComponent<Shadow>() ?? netRollObj.AddComponent<Shadow>();
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.65f);
-        shadow.effectDistance = new Vector2(0f, -4f);
+        RoyalUiThemeKit.ApplyArcadeButton(netRollObj, RoyalUiThemeKit.ArcadeGoldCta, RoyalUiThemeKit.BrassBright, 1.8f);
+        if (netRollObj.GetComponent<RoyalButtonHoverEffect>() == null)
+            netRollObj.AddComponent<RoyalButtonHoverEffect>();
 
         TMP_Text btnText = netRollObj.GetComponentInChildren<TMP_Text>(true);
         if (btnText != null)
         {
             btnText.text = "GIEO 2 XÚC XẮC";
-            btnText.fontSize = 21f;
+            btnText.fontSize = 20f;
             btnText.fontStyle = FontStyles.Bold;
-            btnText.color = new Color(0.14f, 0.09f, 0.03f, 1f);
+            btnText.color = RoyalUiThemeKit.DarkGoldInk;
             btnText.alignment = TextAlignmentOptions.Center;
         }
     }
@@ -1330,18 +1490,10 @@ public class GameplayUI : MonoBehaviour
             rt.anchorMax = new Vector2(1f, 1f);
             rt.pivot = new Vector2(1f, 1f);
             rt.anchoredPosition = new Vector2(-16f, -12f);
-            rt.sizeDelta = new Vector2(184f, 64f);
+            rt.sizeDelta = new Vector2(186f, 64f);
         }
 
-        Image panelImg = roomPanel.GetComponent<Image>();
-        if (panelImg != null)
-        {
-            panelImg.sprite = GetRoundedPanelSprite();
-            panelImg.type = Image.Type.Sliced;
-            panelImg.color = WoodDarkBg;
-        }
-
-        AddRoyalFrame(roomPanel, GoldBorder, new Vector2(1.8f, -1.8f));
+        RoyalUiThemeKit.ApplyLacquerPanel(roomPanel, WoodDarkBg, GoldBorder, 1.8f, false);
 
         Transform titleTr = roomPanel.transform.Find("RoomControlTitle");
         if (titleTr != null)
@@ -1361,31 +1513,106 @@ public class GameplayUI : MonoBehaviour
                 outRt.anchorMax = new Vector2(0.5f, 0.5f);
                 outRt.pivot = new Vector2(0.5f, 0.5f);
                 outRt.anchoredPosition = Vector2.zero;
-                outRt.sizeDelta = new Vector2(160f, 42f);
+                outRt.sizeDelta = new Vector2(162f, 42f);
             }
 
-            Image outImg = outBtnTr.GetComponent<Image>();
-            if (outImg != null)
-            {
-                outImg.sprite = GetRoundedPanelSprite();
-                outImg.type = Image.Type.Sliced;
-                outImg.color = new Color(0.68f, 0.14f, 0.16f, 0.98f);
-            }
-
-            Outline btnOutline = outBtnTr.gameObject.GetComponent<Outline>() ?? outBtnTr.gameObject.AddComponent<Outline>();
-            btnOutline.effectColor = GoldBorder;
-            btnOutline.effectDistance = new Vector2(1.5f, -1.5f);
+            RoyalUiThemeKit.ApplyArcadeButton(outBtnTr.gameObject, RoyalUiThemeKit.ArcadeCrimson, GoldBorder, 1.5f);
+            if (outBtnTr.gameObject.GetComponent<RoyalButtonHoverEffect>() == null)
+                outBtnTr.gameObject.AddComponent<RoyalButtonHoverEffect>();
 
             TMP_Text outLbl = outBtnTr.GetComponentInChildren<TMP_Text>(true);
             if (outLbl != null)
             {
                 outLbl.text = "RỜI PHÒNG";
-                outLbl.fontSize = 16.5f;
+                outLbl.fontSize = 16f;
                 outLbl.fontStyle = FontStyles.Bold;
                 outLbl.color = IvoryText;
                 outLbl.alignment = TextAlignmentOptions.Center;
             }
+
+            Button outBtn = outBtnTr.GetComponent<Button>();
+            if (outBtn != null)
+            {
+                outBtn.onClick.RemoveAllListeners();
+                outBtn.onClick.AddListener(() =>
+                {
+                    Transform rootTr = transform.root != null ? transform.root : transform;
+                    RoyalUiThemeKit.ShowExitConfirmationPopup(rootTr, () =>
+                    {
+                        if (NetworkRoomControlManager.Instance != null)
+                            NetworkRoomControlManager.Instance.ConfirmOutRoom();
+                    });
+                });
+            }
         }
+
+        if (roomPanel.transform.parent != null)
+            EnsureDemoFastFinishButton(roomPanel.transform.parent);
+    }
+
+    void EnsureDemoFastFinishButton(Transform canvasRoot)
+    {
+        if (canvasRoot == null || canvasRoot.Find("DemoFastFinishButton") != null)
+            return;
+
+        GameObject btnObj = new GameObject("DemoFastFinishButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        btnObj.layer = canvasRoot.gameObject.layer;
+        btnObj.transform.SetParent(canvasRoot, false);
+
+        RectTransform rt = btnObj.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(1f, 1f);
+        rt.anchoredPosition = new Vector2(-66f, -84f);
+        rt.sizeDelta = new Vector2(136f, 42f);
+
+        RoyalUiThemeKit.ApplyArcadeButton(btnObj, RoyalUiThemeKit.ArcadeGoldCta, RoyalUiThemeKit.BrassBright, 1.6f);
+        if (btnObj.GetComponent<RoyalButtonHoverEffect>() == null)
+            btnObj.AddComponent<RoyalButtonHoverEffect>();
+
+        GameObject txtObj = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+        txtObj.layer = canvasRoot.gameObject.layer;
+        txtObj.transform.SetParent(btnObj.transform, false);
+
+        RectTransform txtRt = txtObj.GetComponent<RectTransform>();
+        txtRt.anchorMin = Vector2.zero;
+        txtRt.anchorMax = Vector2.one;
+        txtRt.offsetMin = Vector2.zero;
+        txtRt.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI lbl = txtObj.GetComponent<TextMeshProUGUI>();
+        if (TMP_Settings.defaultFontAsset != null)
+            lbl.font = TMP_Settings.defaultFontAsset;
+        lbl.text = "DEMO END [F10]";
+        lbl.fontSize = 12.5f;
+        lbl.fontStyle = FontStyles.Bold;
+        lbl.color = RoyalUiThemeKit.DarkGoldInk;
+        lbl.alignment = TextAlignmentOptions.Center;
+        lbl.raycastTarget = false;
+
+        Button btn = btnObj.GetComponent<Button>();
+        btn.onClick.AddListener(TriggerFastMatchFinish);
+    }
+
+    public void TriggerFastMatchFinish()
+    {
+        if (NetworkGameResultManager.Instance == null)
+        {
+            Debug.LogWarning("[GameplayUI] NetworkGameResultManager.Instance is null, cannot fast finish.");
+            return;
+        }
+
+        bool isNetworkActive = NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
+        if (!isNetworkActive || NetworkManager.Singleton.IsServer)
+        {
+            NetworkGameResultManager.Instance.TriggerFastDemoFinishServer();
+        }
+        else
+        {
+            NetworkGameResultManager.Instance.RequestFastMatchFinishRpc();
+        }
+
+        SetMessage("Mẹo: Đang kích hoạt kết thúc nhanh (Demo)...");
     }
 
     GameObject CreateRoundedSubPanel(
@@ -1491,14 +1718,7 @@ public class GameplayUI : MonoBehaviour
 
     Color GetPlayerColor(int playerIndex)
     {
-        switch (playerIndex)
-        {
-            case 0: return new Color(0.22f, 0.48f, 0.92f, 1f); // Royal Sapphire Blue
-            case 1: return new Color(0.86f, 0.22f, 0.22f, 1f); // Crimson Ruby Red
-            case 2: return new Color(0.18f, 0.68f, 0.36f, 1f); // Emerald Forest Green
-            case 3: return new Color(0.88f, 0.66f, 0.14f, 1f); // Imperial Amber Gold
-            default: return IvoryText;
-        }
+        return RoyalUiThemeKit.GetFactionColor(playerIndex);
     }
 
     static string GetVietnameseColorName(int playerIndex)
@@ -1527,39 +1747,6 @@ public class GameplayUI : MonoBehaviour
             displayName = displayName.Substring(0, 16);
 
         return displayName;
-    }
-
-    static Sprite CreateRoundedSprite(int size, int radius)
-    {
-        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
-        {
-            wrapMode = TextureWrapMode.Clamp,
-            filterMode = FilterMode.Bilinear
-        };
-
-        float r = radius;
-        for (int y = 0; y < size; y++)
-        {
-            for (int x = 0; x < size; x++)
-            {
-                float dx = x < r ? r - x - 0.5f : (x >= size - r ? x - (size - r - 1) - 0.5f : 0f);
-                float dy = y < r ? r - y - 0.5f : (y >= size - r ? y - (size - r - 1) - 0.5f : 0f);
-                float dist = Mathf.Sqrt(dx * dx + dy * dy);
-                float alpha = Mathf.Clamp01(r + 0.5f - dist);
-                tex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
-            }
-        }
-
-        tex.Apply();
-        return Sprite.Create(
-            tex,
-            new Rect(0, 0, size, size),
-            new Vector2(0.5f, 0.5f),
-            100f,
-            0,
-            SpriteMeshType.FullRect,
-            new Vector4(radius, radius, radius, radius)
-        );
     }
 
     static Sprite CreateCircleSprite(int size)

@@ -12,7 +12,9 @@ public class DiceButtonUI : MonoBehaviour
 
     private DiceManager localDiceManager;
     private Image buttonImage;
+    private Outline buttonOutline;
     private TMP_Text buttonLabel;
+    private RoyalButtonHoverEffect hoverEffect;
 
     void Awake()
     {
@@ -27,8 +29,14 @@ public class DiceButtonUI : MonoBehaviour
         if (buttonImage == null)
             buttonImage = rollButton.GetComponent<Image>();
 
+        if (buttonOutline == null)
+            buttonOutline = rollButton.GetComponent<Outline>();
+
         if (buttonLabel == null)
             buttonLabel = rollButton.GetComponentInChildren<TMP_Text>(true);
+
+        if (hoverEffect == null)
+            hoverEffect = rollButton.GetComponent<RoyalButtonHoverEffect>();
     }
 
     void Update()
@@ -89,22 +97,38 @@ public class DiceButtonUI : MonoBehaviour
 
     void ApplyButtonStateVisuals(bool canRoll, string text)
     {
-        SetAlpha(canRoll ? 1f : 0.72f);
+        SetAlpha(canRoll ? 1f : 0.74f);
 
         if (buttonImage != null)
         {
             buttonImage.color = canRoll
-                ? new Color(0.88f, 0.64f, 0.16f, 1f)
-                : new Color(0.22f, 0.17f, 0.12f, 0.92f);
+                ? RoyalUiThemeKit.ArcadeGoldCta
+                : RoyalUiThemeKit.ArcadeDisabled;
+        }
+
+        if (buttonOutline != null)
+        {
+            if (canRoll)
+            {
+                float glow = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 4.5f);
+                buttonOutline.effectColor = Color.Lerp(RoyalUiThemeKit.BrassAntique, RoyalUiThemeKit.BrassBright, glow);
+            }
+            else
+            {
+                buttonOutline.effectColor = RoyalUiThemeKit.BronzeMuted;
+            }
         }
 
         if (buttonLabel != null)
         {
             buttonLabel.text = text;
             buttonLabel.color = canRoll
-                ? new Color(0.14f, 0.09f, 0.03f, 1f)
-                : new Color(0.84f, 0.78f, 0.68f, 0.90f);
+                ? RoyalUiThemeKit.DarkGoldInk
+                : RoyalUiThemeKit.WarmMutedText;
         }
+
+        if (hoverEffect != null)
+            hoverEffect.SetIdlePulse(canRoll);
     }
 
     public void RollDice()

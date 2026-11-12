@@ -4,10 +4,10 @@ using UnityEngine.UI;
 
 public class SkinShopUI : MonoBehaviour
 {
-    static readonly Color Backdrop = new Color(0.025f, 0.035f, 0.055f, 0.94f);
-    static readonly Color Card = new Color(0.09f, 0.12f, 0.18f, 1f);
-    static readonly Color Accent = new Color(0.18f, 0.55f, 0.95f, 1f);
-    static readonly Color CoinGold = new Color(1f, 0.78f, 0.16f, 1f);
+    static readonly Color Backdrop = new Color(0.035f, 0.022f, 0.015f, 0.88f);
+    static readonly Color Card = RoyalUiThemeKit.LacquerEbony;
+    static readonly Color Accent = RoyalUiThemeKit.ArcadeGoldCta;
+    static readonly Color CoinGold = new Color(1f, 0.82f, 0.24f, 1f);
 
     GameObject panel;
     RectTransform listRoot;
@@ -69,8 +69,11 @@ public class SkinShopUI : MonoBehaviour
         panel.SetActive(false);
 
         GameObject card = CreatePanel(panel.transform, "ShopCard", new Vector2(0.08f, 0.06f), new Vector2(0.92f, 0.94f), Vector2.zero, Vector2.zero, Card);
+        RoyalUiThemeKit.ApplyLacquerPanel(card, RoyalUiThemeKit.LacquerEbony, RoyalUiThemeKit.BrassAntique, 2.2f, true);
 
-        titleText = CreateText(card.transform, "SKIN SHOP", 34f, TextAlignmentOptions.Center);
+        titleText = CreateText(card.transform, "SKIN SHOP", 30f, TextAlignmentOptions.Center);
+        titleText.color = RoyalUiThemeKit.BrassBright;
+        titleText.fontStyle = FontStyles.Bold;
         titleText.rectTransform.pivot = new Vector2(0.5f, 1f);
         SetRect(titleText.rectTransform, new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -14f), new Vector2(-120f, 48f));
 
@@ -82,14 +85,18 @@ public class SkinShopUI : MonoBehaviour
         coinText.rectTransform.pivot = new Vector2(0f, 1f);
         SetRect(coinText.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(62f, -68f), new Vector2(242f, 34f));
 
-        Button close = CreateButton(card.transform, "X", Vector2.one, new Vector2(-24f, -22f), new Vector2(46f, 42f));
+        Button close = CreateButton(card.transform, "X", Vector2.one, new Vector2(-22f, -20f), new Vector2(44f, 40f));
+        RoyalUiThemeKit.ApplyArcadeButton(close.gameObject, RoyalUiThemeKit.ArcadeCrimson, RoyalUiThemeKit.BrassBright, 1.4f);
+        TMP_Text closeLbl = close.GetComponentInChildren<TMP_Text>(true);
+        if (closeLbl != null) closeLbl.color = RoyalUiThemeKit.IvoryText;
         RectTransform closeRect = close.GetComponent<RectTransform>();
         closeRect.anchorMin = Vector2.one;
         closeRect.anchorMax = Vector2.one;
         closeRect.pivot = Vector2.one;
         close.onClick.AddListener(() => panel.SetActive(false));
 
-        GameObject list = CreatePanel(card.transform, "SkinListViewport", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, new Color(0f, 0f, 0f, 0.16f));
+        GameObject list = CreatePanel(card.transform, "SkinListViewport", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, RoyalUiThemeKit.LacquerInset);
+        RoyalUiThemeKit.ApplyRecessedSlot(list, RoyalUiThemeKit.LacquerInset, RoyalUiThemeKit.BronzeMuted, 1.2f);
         RectTransform viewportRect = list.GetComponent<RectTransform>();
         viewportRect.offsetMin = new Vector2(24f, 64f);
         viewportRect.offsetMax = new Vector2(-24f, -110f);
@@ -178,11 +185,14 @@ public class SkinShopUI : MonoBehaviour
 
     void CreateSkinRow(SkinDefinition skin, DatabaseManager.BackendSkin sale, PlayerData player, bool owned)
     {
-        GameObject row = CreatePanel(listRoot, skin.id, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 128f), new Color(0.13f, 0.17f, 0.24f, 1f));
+        GameObject row = CreatePanel(listRoot, skin.id, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 128f), RoyalUiThemeKit.LacquerWarm);
+        RoyalUiThemeKit.ApplyLacquerPanel(row, RoyalUiThemeKit.LacquerWarm, RoyalUiThemeKit.BronzeMuted, 1.3f, false);
         LayoutElement layout = row.AddComponent<LayoutElement>();
         layout.preferredHeight = 128f;
 
-        TMP_Text label = CreateText(row.transform, sale.name, 25f, TextAlignmentOptions.MidlineLeft);
+        TMP_Text label = CreateText(row.transform, sale.name, 24f, TextAlignmentOptions.MidlineLeft);
+        label.color = RoyalUiThemeKit.IvoryText;
+        label.fontStyle = FontStyles.Bold;
         label.richText = false;
         SetRect(label.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(24f, 10f), new Vector2(-220f, -20f));
 
@@ -196,12 +206,20 @@ public class SkinShopUI : MonoBehaviour
             : !owned && player != null;
 
         Button button = CreateButton(row.transform, action, new Vector2(1f, 0.5f), new Vector2(-16f, 0f), new Vector2(176f, 54f));
+        Color btnCol = showPrice ? RoyalUiThemeKit.LacquerInset : (canInteract ? RoyalUiThemeKit.ArcadeGoldCta : RoyalUiThemeKit.ArcadeDisabled);
+        RoyalUiThemeKit.ApplyArcadeButton(button.gameObject, btnCol, RoyalUiThemeKit.BrassAntique, 1.4f);
+        TMP_Text btnLbl = button.GetComponentInChildren<TMP_Text>(true);
+        if (btnLbl != null && !showPrice)
+            btnLbl.color = canInteract ? RoyalUiThemeKit.DarkGoldInk : RoyalUiThemeKit.WarmMutedText;
+
         RectTransform rect = button.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(1f, 0.5f);
         rect.anchorMax = new Vector2(1f, 0.5f);
         rect.pivot = new Vector2(1f, 0.5f);
         button.interactable = canInteract;
         button.onClick.AddListener(() => HandleSkin(skin, owned));
+        if (button.GetComponent<RoyalButtonHoverEffect>() == null)
+            button.gameObject.AddComponent<RoyalButtonHoverEffect>();
 
         if (showPrice)
             StyleCoinPriceButton(button);

@@ -14,7 +14,7 @@ public class DatabaseManager : MonoBehaviour
     public const int WinRewardCoins = 1000;
     public static DatabaseManager Instance;
     [Header("Backend API")]
-    [SerializeField] private string backendUrl = "http://127.0.0.1:5001";
+    [SerializeField] private string backendUrl = "https://cocangua-backend.onrender.com";
     public string BackendUrl
     {
         get => backendUrl;
@@ -234,7 +234,12 @@ public class DatabaseManager : MonoBehaviour
     public Task<bool> EndMatchHistory(string matchId, string reason) => FinishMatch(matchId, Array.Empty<int>(), reason);
     public async Task<bool> FinishMatch(string matchId, int[] ranking, string reason)
     {
-        if (string.IsNullOrEmpty(matchId)) return false;
+        if (string.IsNullOrEmpty(matchId))
+        {
+            LastMessage = "Missing match ID.";
+            Debug.LogWarning("[DatabaseManager] FinishMatch skipped because matchId is empty.");
+            return false;
+        }
         try
         {
             Task drained = await Task.WhenAny(rollQueue, Task.Delay(5000));
@@ -243,7 +248,10 @@ public class DatabaseManager : MonoBehaviour
             await RefreshPlayer();
             if (CurrentMatchId == matchId) { CurrentMatchId = ""; CurrentRoomId = ""; IsRoomHost = false; }
             PlayerPrefs.DeleteKey("CurrentMatchHistoryId");
-            bool confirmed = ranking.Length == 0 || (response.match != null && response.match.status == "Ended" && response.match.rewardCoins > 0);
+            bool hasMatchPayload = response.match != null && !string.IsNullOrEmpty(response.match.id);
+            bool confirmed = ranking.Length == 0
+                || !hasMatchPayload
+                || ((response.match.status == "Ended" || response.match.status == "Finished") && response.match.rewardCoins > 0);
             if (!confirmed) LastMessage = "The backend did not confirm a winner reward for this match.";
             return confirmed;
         }

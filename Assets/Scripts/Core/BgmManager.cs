@@ -26,6 +26,7 @@ public class BgmManager : MonoBehaviour
     private Button muteButton;
     private TMP_Text muteButtonLabel;
     private Image muteButtonBg;
+    private Image muteNoteIcon;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
@@ -273,23 +274,38 @@ public class BgmManager : MonoBehaviour
         btnRect.anchorMax = new Vector2(0f, 0f);
         btnRect.pivot = new Vector2(0f, 0f);
         btnRect.anchoredPosition = new Vector2(16f, 14f);
-        btnRect.sizeDelta = new Vector2(128f, 34f);
+        btnRect.sizeDelta = new Vector2(142f, 38f);
 
         muteButtonBg = btnObj.GetComponent<Image>();
-        muteButtonBg.color = new Color(0.14f, 0.09f, 0.06f, 0.94f);
+        muteButtonBg.sprite = RoyalUiThemeKit.GetArcadeButtonSprite();
+        muteButtonBg.type = Image.Type.Sliced;
+        muteButtonBg.color = RoyalUiThemeKit.LacquerWarm;
 
         Outline outline = btnObj.GetComponent<Outline>();
-        outline.effectColor = new Color(0.92f, 0.73f, 0.28f, 0.92f);
+        outline.effectColor = RoyalUiThemeKit.BrassAntique;
         outline.effectDistance = new Vector2(1.5f, -1.5f);
 
         Shadow shadow = btnObj.GetComponent<Shadow>();
         shadow.effectColor = new Color(0f, 0f, 0f, 0.65f);
-        shadow.effectDistance = new Vector2(0f, -3f);
+        shadow.effectDistance = new Vector2(0f, -3.5f);
 
         muteButton = btnObj.GetComponent<Button>();
         muteButton.targetGraphic = muteButtonBg;
         muteButton.onClick.AddListener(ToggleMute);
         btnObj.AddComponent<RoyalButtonHoverEffect>();
+
+        GameObject iconObj = new GameObject("MusicIcon", typeof(RectTransform), typeof(Image));
+        iconObj.transform.SetParent(btnObj.transform, false);
+        RectTransform iconRect = iconObj.GetComponent<RectTransform>();
+        iconRect.anchorMin = new Vector2(0f, 0.5f);
+        iconRect.anchorMax = new Vector2(0f, 0.5f);
+        iconRect.pivot = new Vector2(0f, 0.5f);
+        iconRect.anchoredPosition = new Vector2(11f, 1f);
+        iconRect.sizeDelta = new Vector2(20f, 20f);
+        muteNoteIcon = iconObj.GetComponent<Image>();
+        muteNoteIcon.sprite = RoyalUiThemeKit.GetIcon(RoyalUiThemeKit.IconKind.MusicNote);
+        muteNoteIcon.preserveAspect = true;
+        muteNoteIcon.raycastTarget = false;
 
         GameObject txtObj = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
         txtObj.transform.SetParent(btnObj.transform, false);
@@ -297,13 +313,13 @@ public class BgmManager : MonoBehaviour
         RectTransform txtRect = txtObj.GetComponent<RectTransform>();
         txtRect.anchorMin = Vector2.zero;
         txtRect.anchorMax = Vector2.one;
-        txtRect.offsetMin = new Vector2(8f, 2f);
-        txtRect.offsetMax = new Vector2(-8f, -2f);
+        txtRect.offsetMin = new Vector2(34f, 3f);
+        txtRect.offsetMax = new Vector2(-10f, -1f);
 
         muteButtonLabel = txtObj.GetComponent<TextMeshProUGUI>();
         if (TMP_Settings.defaultFontAsset != null)
             muteButtonLabel.font = TMP_Settings.defaultFontAsset;
-        muteButtonLabel.fontSize = 13f;
+        muteButtonLabel.fontSize = 13.5f;
         muteButtonLabel.fontStyle = FontStyles.Bold;
         muteButtonLabel.alignment = TextAlignmentOptions.Center;
         muteButtonLabel.raycastTarget = false;
@@ -333,13 +349,17 @@ public class BgmManager : MonoBehaviour
         {
             muteButtonLabel.text = "NHẠC: TẮT";
             muteButtonLabel.color = new Color(0.75f, 0.68f, 0.58f, 0.90f);
-            muteButtonBg.color = new Color(0.12f, 0.08f, 0.06f, 0.88f);
+            muteButtonBg.color = RoyalUiThemeKit.LacquerInset;
+            if (muteNoteIcon != null)
+                muteNoteIcon.color = new Color(0.65f, 0.58f, 0.48f, 0.75f);
         }
         else
         {
             muteButtonLabel.text = "NHẠC: BẬT";
-            muteButtonLabel.color = new Color(1f, 0.92f, 0.68f, 1f);
-            muteButtonBg.color = new Color(0.20f, 0.12f, 0.07f, 0.96f);
+            muteButtonLabel.color = RoyalUiThemeKit.BrassBright;
+            muteButtonBg.color = RoyalUiThemeKit.LacquerWarm;
+            if (muteNoteIcon != null)
+                muteNoteIcon.color = RoyalUiThemeKit.BrassBright;
         }
     }
 

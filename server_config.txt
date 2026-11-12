@@ -1,0 +1,21 @@
+# ===================================================================
+# FILE CẤU HÌNH SERVER CHO GAME 3D CỜ CÁ NGỰA
+# ===================================================================
+# HƯỚNG DẪN KẾT NỐI:
+#
+# 1. Chơi trên 1 máy tính (Localhost):
+#    BackendUrl=https://cocangua-backend.onrender.com
+#    TcpHost=127.0.0.1
+#
+# 2. Chơi cùng mạng WiFi / LAN (Điền IP máy Host chạy Backend dotnet run):
+#    Ví dụ: Máy Host có IP là 192.168.1.15:
+#    BackendUrl=http://192.168.1.15:5001
+#    TcpHost=192.168.1.15
+#
+# 3. Chơi qua ngrok / Cloudflare Tunnel / Radmin VPN:
+#    BackendUrl=https://your-domain.ngrok-free.app
+#    TcpHost=127.0.0.1
+# ===================================================================
+BackendUrl=https://cocangua-backend.onrender.com
+TcpHost=127.0.0.1
+TcpPort=7777

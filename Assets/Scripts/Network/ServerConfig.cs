@@ -7,7 +7,7 @@ public static class ServerConfig
     private const string ConfigFileName = "server_config.txt";
     private static bool isLoaded = false;
 
-    public static string BackendUrl { get; private set; } = "http://127.0.0.1:5001";
+    public static string BackendUrl { get; private set; } = "https://cocangua-backend.onrender.com";
     public static string TcpHost { get; private set; } = "127.0.0.1";
     public static int TcpPort { get; private set; } = 7777;
     public static string ConfigFilePath { get; private set; } = "";
@@ -58,7 +58,15 @@ public static class ServerConfig
         string prefIp = PlayerPrefs.GetString("CustomServerIP", "");
         if (!string.IsNullOrWhiteSpace(prefIp))
         {
-            ApplyCustomIp(prefIp);
+            if (prefIp.Contains("127.0.0.1") || prefIp.Contains("localhost"))
+            {
+                PlayerPrefs.DeleteKey("CustomServerIP");
+                PlayerPrefs.Save();
+            }
+            else
+            {
+                ApplyCustomIp(prefIp);
+            }
         }
 
         // If no config file was found, create a template config file
@@ -170,7 +178,7 @@ public static class ServerConfig
 #    BackendUrl=https://your-domain.ngrok-free.app
 #    TcpHost=127.0.0.1
 # ===================================================================
-BackendUrl=http://127.0.0.1:5001
+BackendUrl=https://cocangua-backend.onrender.com
 TcpHost=127.0.0.1
 TcpPort=7777
 ";

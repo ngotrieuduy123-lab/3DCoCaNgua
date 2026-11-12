@@ -17,6 +17,9 @@ public interface IGameRepository
     Task<Match?> GetMatchByIdAsync(string id);
     Task FinishMatchAsync(string matchId, string? winnerPlayerId, int rewardCoins);
     Task RecordRollAsync(DiceRoll roll);
+    Task<List<Room>> GetRecentRoomsAsync(int limit = 100);
+    Task<List<Match>> GetRecentMatchesAsync(int limit = 100);
+    Task<List<DiceRoll>> GetRecentRollsAsync(int limit = 200);
 }
 
 public class GameRepository : IGameRepository
@@ -257,6 +260,39 @@ public class GameRepository : IGameRepository
         if (DbInitializer.IsMongoConnected)
         {
             try { await _rolls.InsertOneAsync(roll); } catch { }
+        }
+    }
+
+    public async Task<List<Room>> GetRecentRoomsAsync(int limit = 100)
+    {
+        if (DbInitializer.IsMongoConnected)
+        {
+            try { return await _rooms.Find(_ => true).SortByDescending(x => x.CreatedAtUtc).Limit(limit).ToListAsync(); }
+            catch { }
+        }
+        return _inMemoryRooms.Values.OrderByDescending(x => x.CreatedAtUtc).Take(limit).ToList();
+    }
+
+    public async Task<List<Match>> GetRecentMatchesAsync(int limit = 100)
+    {
+        if (DbInitializer.IsMongoConnected)
+        {
+            try { return await _matches.Find(_ => true).SortByDescending(x => x.StartedAtUtc).Limit(limit).ToListAsync(); }
+            catch { }
+        }
+        return _inMemoryMatches.Values.OrderByDescending(x => x.StartedAtUtc).Take(limit).ToList();
+    }
+
+    public async Task<List<DiceRoll>> GetRecentRollsAsync(int limit = 200)
+    {
+        if (DbInitializer.IsMongoConnected)
+        {
+            try { return await _rolls.Find(_ => true).SortByDescending(x => x.RolledAtUtc).Limit(limit).ToListAsync(); }
+            catch { }
+        }
+        lock (_inMemoryRolls)
+        {
+            return _inMemoryRolls.OrderByDescending(x => x.RolledAtUtc).Take(limit).ToList();
         }
     }
 }

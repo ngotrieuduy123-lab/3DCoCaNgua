@@ -700,8 +700,13 @@ game.MapPost("/matches/{id}/finish", async (string id, FinishMatchDto body, IGam
         }
     }
 
-    await gameRepo.FinishMatchAsync(id, winnerId, 1000);
-    return Results.Ok(new { message = "Match saved." });
+    int rewardCoins = !string.IsNullOrEmpty(winnerId) ? 1000 : 0;
+    await gameRepo.FinishMatchAsync(id, winnerId, rewardCoins);
+    return Results.Ok(new
+    {
+        message = "Match saved.",
+        match = new { id, status = "Ended", rewardCoins }
+    });
 });
 
 game.MapPost("/logout", () => Results.Ok(new { message = "Logged out." }));
@@ -891,10 +896,22 @@ app.MapGet("/api/actionlogs", async (IActionLogRepository actionLogRepo) =>
     .WithSummary("Get recent plaintext action logs from MongoDB (action_logs collection)")
     .WithTags("Action Logs");
 
-// 8. Placeholders for rooms, matches, rolls, transactions
-admin.MapGet("/rooms", () => Results.Ok(new { items = Array.Empty<object>(), total = 0 }));
-admin.MapGet("/matches", () => Results.Ok(new { items = Array.Empty<object>(), total = 0 }));
-admin.MapGet("/rolls", () => Results.Ok(new { items = Array.Empty<object>(), total = 0 }));
+// 8. Rooms, matches, rolls, transactions
+admin.MapGet("/rooms", async (IGameRepository gameRepo) =>
+{
+    var items = await gameRepo.GetRecentRoomsAsync();
+    return Results.Ok(new { items, total = items.Count });
+});
+admin.MapGet("/matches", async (IGameRepository gameRepo) =>
+{
+    var items = await gameRepo.GetRecentMatchesAsync();
+    return Results.Ok(new { items, total = items.Count });
+});
+admin.MapGet("/rolls", async (IGameRepository gameRepo) =>
+{
+    var items = await gameRepo.GetRecentRollsAsync();
+    return Results.Ok(new { items, total = items.Count });
+});
 admin.MapGet("/transactions", async (IPurchaseLogRepository logRepo) =>
 {
     var logs = await logRepo.GetAllAsync();

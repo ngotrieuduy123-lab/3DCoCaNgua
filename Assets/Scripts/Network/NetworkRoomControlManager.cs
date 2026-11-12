@@ -101,8 +101,23 @@ public class NetworkRoomControlManager : NetworkBehaviour
         if (localReturnedToLobby)
             return;
 
+        Canvas canvas = FindAnyObjectByType<Canvas>();
+        if (canvas != null)
+        {
+            RoyalUiThemeKit.ShowExitConfirmationPopup(canvas.transform, ConfirmOutRoom);
+            return;
+        }
+
+        ConfirmOutRoom();
+    }
+
+    public void ConfirmOutRoom()
+    {
+        if (localReturnedToLobby)
+            return;
+
         if (loadingOverlay != null)
-            loadingOverlay.Show("Leaving room...");
+            loadingOverlay.Show("Đang rời phòng...");
 
         if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening || !IsSpawned)
         {
@@ -112,7 +127,7 @@ public class NetworkRoomControlManager : NetworkBehaviour
 
         if (IsServer)
         {
-            StopRoomServer("Host left. Returning to lobby.", "Host left room");
+            HandlePlayerOutServer(NetworkManager.ServerClientId, true);
             return;
         }
 
@@ -160,20 +175,46 @@ public class NetworkRoomControlManager : NetworkBehaviour
         }
         SetPlayerPiecesActiveRpc(playerIndex, false);
 
-        if (playerIndex == 0)
-        {
-            StopRoomServer("Host left. Returning to lobby.", "Host left room");
-            return;
-        }
-
         int activeCount = activePlayers.Count;
 
-        if (activeCount < 2)
+        // CASE 1: Host is the leaving player
+        if (playerIndex == 0)
         {
-            StopRoomServer("Not enough players. Returning to lobby.", "Not enough players");
+            if (activeCount == 1)
+            {
+                // In a 2-player match: Host surrenders -> the other remaining player wins!
+                int remainingWinner = activePlayers[0];
+                if (NetworkGameResultManager.Instance != null)
+                {
+                    NetworkGameResultManager.Instance.EndGameFromForfeit(remainingWinner, 0, "Chủ phòng đã rời trận (Bỏ cuộc)");
+                    StartCoroutine(HostDelayLeaveRoutine(1.2f));
+                    return;
+                }
+            }
+
+            StopRoomServer("Chủ phòng đã rời trận đấu. Đang trở về sảnh.", "Host left room");
             return;
         }
 
+        // CASE 2: Client is leaving and only 1 player remains (2-player match or last survivor)
+        if (activeCount <= 1)
+        {
+            int winnerIndex = activeCount == 1 ? activePlayers[0] : 0;
+
+            if (requestedByPlayer)
+                ReturnLeavingPlayerToLobbyRpc(clientId);
+
+            if (NetworkGameResultManager.Instance != null)
+            {
+                NetworkGameResultManager.Instance.EndGameFromForfeit(winnerIndex, playerIndex, "Đối thủ đã rời trận (Bỏ cuộc)");
+                return;
+            }
+
+            StopRoomServer("Không còn đủ người chơi. Đang trở về sảnh.", "Not enough players");
+            return;
+        }
+
+        // CASE 3: 3+ players -> Match continues normally!
         if (NetworkTurnManager.Instance != null &&
             NetworkTurnManager.Instance.currentPlayerIndex.Value == playerIndex)
         {
@@ -187,6 +228,12 @@ public class NetworkRoomControlManager : NetworkBehaviour
 
         if (requestedByPlayer)
             ReturnLeavingPlayerToLobbyRpc(clientId);
+    }
+
+    IEnumerator HostDelayLeaveRoutine(float delaySeconds)
+    {
+        yield return new WaitForSecondsRealtime(delaySeconds);
+        StartCoroutine(ReturnWholeRoomToLobbyRoutine());
     }
 
     void RemoveActivePlayer(int playerIndex)
@@ -248,8 +295,14 @@ public class NetworkRoomControlManager : NetworkBehaviour
     [Rpc(SendTo.ClientsAndHost)]
     void NotifyPlayerOutRpc(int playerIndex, int ownerPlayerIndex, int activeCount)
     {
-        SetStatus("Player " + playerIndex + " left. Active players: " + activeCount);
+        string pName = PlayerPrefs.GetString("TurnDisplayName_" + playerIndex, ((PlayerColor)playerIndex).ToString());
+        string msg = $"{pName} ({(PlayerColor)playerIndex}) đã rời trận! Trận đấu tiếp tục với {activeCount} kỳ thủ.";
+        SetStatus(msg);
         UpdateLocalControls();
+        if (GameplayUI.Instance != null)
+        {
+            GameplayUI.Instance.SetMessage("Thông báo: " + msg);
+        }
     }
 
     [Rpc(SendTo.ClientsAndHost)]
