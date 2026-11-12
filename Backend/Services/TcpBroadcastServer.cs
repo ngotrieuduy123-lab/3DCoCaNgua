@@ -16,6 +16,8 @@ public class StateObject
     public byte[] Buffer { get; set; } = new byte[BufferSize];
     public StringBuilder Sb { get; set; } = new();
     public string ClientId { get; set; } = Guid.NewGuid().ToString();
+    public bool IsHttpProbe { get; set; }
+    public bool HasLoggedConnection { get; set; }
 }
 
 public class PurchaseMessage
@@ -85,9 +87,6 @@ public class TcpBroadcastServer : BackgroundService
                     };
 
                     _clients[state.ClientId] = state;
-                    _logger.LogInformation("[TCP Server] Client connected: {ClientId} from {RemoteEndPoint}",
-                        state.ClientId, client.Client.RemoteEndPoint);
-
                     _ = HandleClientAsync(state, stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -166,6 +165,35 @@ public class TcpBroadcastServer : BackgroundService
     {
         try
         {
+            if (senderState.IsHttpProbe)
+                return;
+
+            if (IsHttpRequestLine(jsonLine))
+            {
+                senderState.IsHttpProbe = true;
+                try
+                {
+                    byte[] okResp = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK");
+                    await senderState.Stream.WriteAsync(okResp, 0, okResp.Length);
+                    await senderState.Stream.FlushAsync();
+                }
+                catch { }
+                DisconnectClient(senderState);
+                return;
+            }
+
+            if (IsHttpHeaderLine(jsonLine))
+            {
+                senderState.IsHttpProbe = true;
+                return;
+            }
+
+            if (!senderState.HasLoggedConnection)
+            {
+                senderState.HasLoggedConnection = true;
+                _logger.LogInformation("[TCP Server] Client connected: {ClientId}", senderState.ClientId);
+            }
+
             _logger.LogInformation("[TCP Server] Received from {ClientId}: {Line}", senderState.ClientId, jsonLine);
 
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
@@ -176,8 +204,19 @@ public class TcpBroadcastServer : BackgroundService
                 if (string.Equals(message.action, "GAME_LOG", StringComparison.OrdinalIgnoreCase))
                 {
                     string logMsg = message.message ?? "";
+                    string eventType = string.IsNullOrWhiteSpace(message.eventType) ? "GAMEPLAY" : message.eventType.Trim().ToUpperInvariant();
                     WebLogCollector.AddLog(LogLevel.Information, "GamePlay", logMsg);
                     Console.WriteLine($"[GamePlay LiveLog] {logMsg}");
+                    if (!string.IsNullOrWhiteSpace(logMsg))
+                    {
+                        try
+                        {
+                            using var scope = _serviceProvider.CreateScope();
+                            var actionLogRepo = scope.ServiceProvider.GetRequiredService<IActionLogRepository>();
+                            await actionLogRepo.LogAsync($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC] [{eventType}] {logMsg}");
+                        }
+                        catch { }
+                    }
                     return;
                 }
 
@@ -191,6 +230,25 @@ public class TcpBroadcastServer : BackgroundService
         {
             _logger.LogError(ex, "[TCP Server] Failed to parse message from client {ClientId}", senderState.ClientId);
         }
+    }
+
+    private static bool IsHttpRequestLine(string line)
+    {
+        return line.StartsWith("HEAD ", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("GET ", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("POST ", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("PUT ", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("DELETE ", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("OPTIONS ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsHttpHeaderLine(string line)
+    {
+        return !line.StartsWith("{") && !line.StartsWith("[") &&
+               (line.StartsWith("Host:", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("User-Agent:", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("Accept", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("Connection:", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task ProcessPurchaseAsync(StateObject senderState, PurchaseMessage purchase)
@@ -302,6 +360,9 @@ public class TcpBroadcastServer : BackgroundService
         _clients.TryRemove(state.ClientId, out _);
         try { state.Stream.Close(); } catch { }
         try { state.Client.Close(); } catch { }
-        _logger.LogInformation("[TCP Server] Client disconnected: {ClientId}", state.ClientId);
+        if (state.HasLoggedConnection)
+        {
+            _logger.LogInformation("[TCP Server] Client disconnected: {ClientId}", state.ClientId);
+        }
     }
 }

@@ -37,7 +37,6 @@ public class AuthUI : MonoBehaviour
         SetStatus($"Đăng nhập hoặc tạo tài khoản mới để vào sảnh.");
         RoyalMenuThemeStyler.EnsureCreated().ApplyForScene(SceneManager.GetActiveScene().name);
         BgmManager.EnsureCreated().UpdateBgmForScene(SceneManager.GetActiveScene().name);
-        CreateServerInfoBadge();
     }
 
     void CreateServerInfoBadge()

@@ -159,16 +159,21 @@ app.MapRazorPages();
 // Health Check
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", timeUtc = DateTime.UtcNow }));
 
-// Ephemeral Live Game Log Endpoint (Chỉ stream log thời gian thực, KHÔNG LƯU VÀO DB)
-app.MapPost("/api/game/log", (GameLogDto body) =>
+// Live Game Log Endpoint (stream real-time & save to action_logs)
+app.MapPost("/api/game/log", async (GameLogDto body, IActionLogRepository actionLogRepo) =>
 {
     string msg = body.message ?? "";
+    string eventType = string.IsNullOrWhiteSpace(body.eventType) ? "GAMEPLAY" : body.eventType.Trim().ToUpperInvariant();
     WebLogCollector.AddLog(LogLevel.Information, "GamePlay", msg);
     Console.WriteLine($"[GamePlay LiveLog] {msg}");
+    if (!string.IsNullOrWhiteSpace(msg))
+    {
+        await actionLogRepo.LogAsync($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC] [{eventType}] {msg}");
+    }
     return Results.Ok(new { status = "Logged" });
 })
 .AllowAnonymous()
-.WithSummary("Ephemeral live game log streaming (No DB save)")
+.WithSummary("Live game log streaming and action_logs persistence")
 .WithTags("Live Logs");
 
 #region PART 1: Authentication Endpoints
@@ -658,13 +663,14 @@ game.MapPost("/rooms/{id}/heartbeat", async (string id, HttpContext http, IGameR
     return Results.Ok(new { message = "OK" });
 });
 
-game.MapPost("/rooms/{id}/matches", async (string id, StartMatchDto body, HttpContext http, IGameRepository gameRepo, IUserRepository userRepo) =>
+game.MapPost("/rooms/{id}/matches", async (string id, StartMatchDto body, HttpContext http, IGameRepository gameRepo, IUserRepository userRepo, IActionLogRepository actionLogRepo) =>
 {
     string? username = http.User.FindFirst(ClaimTypes.Name)?.Value;
     var user = await userRepo.GetByUsernameAsync(username ?? "");
     if (user == null) return Results.Unauthorized();
 
     var match = await gameRepo.StartMatchAsync(user.Id, id, body.playerIds ?? Array.Empty<string>());
+    await actionLogRepo.LogAsync($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC] [MATCH_START] MatchId='{match.Id}' | RoomId='{id}' | Host='{user.Username}' | Players={match.PlayerCount}");
     return Results.Ok(new { match = new { id = match.Id } });
 });
 
@@ -688,7 +694,7 @@ game.MapPost("/matches/{id}/rolls", async (string id, RollDto body, HttpContext 
     return Results.Ok(new { message = "Recorded." });
 });
 
-game.MapPost("/matches/{id}/finish", async (string id, FinishMatchDto body, IGameRepository gameRepo) =>
+game.MapPost("/matches/{id}/finish", async (string id, FinishMatchDto body, IGameRepository gameRepo, IActionLogRepository actionLogRepo) =>
 {
     string? winnerId = null;
     if (body.ranking != null && body.ranking.Length > 0)
@@ -702,6 +708,7 @@ game.MapPost("/matches/{id}/finish", async (string id, FinishMatchDto body, IGam
 
     int rewardCoins = !string.IsNullOrEmpty(winnerId) ? 1000 : 0;
     await gameRepo.FinishMatchAsync(id, winnerId, rewardCoins);
+    await actionLogRepo.LogAsync($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC] [MATCH_FINISH] MatchId='{id}' | WinnerId='{winnerId ?? "NONE"}' | RewardCoins={rewardCoins:N0} | Reason='{body.reason ?? ""}'");
     return Results.Ok(new
     {
         message = "Match saved.",
