@@ -142,12 +142,31 @@ public class SkinShopUI : MonoBehaviour
         try
         {
             if (DatabaseManager.Instance == null) return;
+            await DatabaseManager.Instance.RefreshPlayer();
             await DatabaseManager.Instance.RefreshSkins();
             if (this == null) return;
             Refresh();
             statusText.text = "";
         }
         catch (System.Exception e) { if (this != null) statusText.text = e.Message; }
+    }
+
+    void OnEnable()
+    {
+        if (DatabaseManager.Instance != null)
+            DatabaseManager.Instance.OnPlayerDataChanged += HandlePlayerDataChanged;
+    }
+
+    void OnDisable()
+    {
+        if (DatabaseManager.Instance != null)
+            DatabaseManager.Instance.OnPlayerDataChanged -= HandlePlayerDataChanged;
+    }
+
+    void HandlePlayerDataChanged(PlayerData _)
+    {
+        if (this != null && panel != null && panel.activeSelf)
+            Refresh();
     }
 
     void Refresh()

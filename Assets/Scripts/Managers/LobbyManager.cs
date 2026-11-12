@@ -59,11 +59,17 @@ public class LobbyManager : NetworkBehaviour
 
         RefreshPlayerList();
 
+        if (DatabaseManager.Instance != null)
+            DatabaseManager.Instance.OnPlayerDataChanged += HandlePlayerDataChanged;
+
         StartCoroutine(SubmitDisplayNameRoutine());
     }
 
     public override void OnNetworkDespawn()
     {
+        if (DatabaseManager.Instance != null)
+            DatabaseManager.Instance.OnPlayerDataChanged -= HandlePlayerDataChanged;
+
         playerClientIds.OnListChanged -= OnPlayerClientListChanged;
         playerNames.OnListChanged -= OnPlayerListChanged;
         playerSkinIds.OnListChanged -= OnPlayerSkinListChanged;
@@ -588,5 +594,10 @@ public void RefreshLocalProfile()
             return;
 
         SubmitDisplayName();
+    }
+
+    void HandlePlayerDataChanged(PlayerData _)
+    {
+        RefreshLocalProfile();
     }
 }

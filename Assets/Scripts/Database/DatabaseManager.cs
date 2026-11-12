@@ -27,6 +27,7 @@ public class DatabaseManager : MonoBehaviour
     public string CurrentMatchId { get; private set; } = "";
     public bool IsRoomHost { get; private set; }
     public BackendSkin[] AvailableSkins { get; private set; } = Array.Empty<BackendSkin>();
+    public event Action<PlayerData> OnPlayerDataChanged;
     string token = "";
     bool destroyed;
     float nextHeartbeat;
@@ -75,7 +76,7 @@ public class DatabaseManager : MonoBehaviour
     void Update()
     {
         if (CurrentPlayer == null || heartbeatBusy || Time.unscaledTime < nextHeartbeat) return;
-        nextHeartbeat = Time.unscaledTime + 20f;
+        nextHeartbeat = Time.unscaledTime + 5f;
         _ = Heartbeat();
     }
 
@@ -85,6 +86,7 @@ public class DatabaseManager : MonoBehaviour
         try
         {
             await Send("/api/game/heartbeat", "POST", "{}");
+            await RefreshPlayer();
             if (IsRoomHost && !string.IsNullOrEmpty(CurrentRoomId)) await Send("/api/game/rooms/" + CurrentRoomId + "/heartbeat", "POST", "{}");
         }
         catch (Exception e) { if (!destroyed) Debug.LogWarning(e.Message); }
@@ -310,11 +312,26 @@ public class DatabaseManager : MonoBehaviour
     void ApplyPlayer(PlayerDto p)
     {
         if (p == null) throw new InvalidOperationException("Backend returned no player profile.");
-        CurrentPlayer = new PlayerData { Id = p.id, Username = p.username, DisplayName = p.displayName, Coins = p.coins, OwnedSkinIds = new List<string>(p.ownedSkinIds ?? Array.Empty<string>()), EquippedSkinId = p.equippedSkinId };
+        var nextSkins = new List<string>(p.ownedSkinIds ?? Array.Empty<string>());
+        bool changed = CurrentPlayer == null
+            || CurrentPlayer.Id != p.id
+            || CurrentPlayer.DisplayName != p.displayName
+            || CurrentPlayer.Coins != p.coins
+            || CurrentPlayer.EquippedSkinId != p.equippedSkinId
+            || CurrentPlayer.OwnedSkinIds.Count != nextSkins.Count;
+        if (!changed && CurrentPlayer != null)
+        {
+            for (int i = 0; i < nextSkins.Count; i++)
+            {
+                if (CurrentPlayer.OwnedSkinIds[i] != nextSkins[i]) { changed = true; break; }
+            }
+        }
+        CurrentPlayer = new PlayerData { Id = p.id, Username = p.username, DisplayName = p.displayName, Coins = p.coins, OwnedSkinIds = nextSkins, EquippedSkinId = p.equippedSkinId };
         PlayerPrefs.SetString("PlayerId", p.id); PlayerPrefs.SetString("Username", p.username); PlayerPrefs.SetString("DisplayName", p.displayName);
         PlayerPrefs.SetInt("Coins", p.coins); PlayerPrefs.SetString("EquippedSkinId", p.equippedSkinId);
         PlayerPrefs.SetString("PlayerSkin_" + PlayerPrefs.GetInt("LocalPlayerIndex", 0), p.equippedSkinId);
         PlayerPrefs.Save();
+        if (changed) OnPlayerDataChanged?.Invoke(CurrentPlayer);
     }
 
     [Serializable] class Credentials { public string username; public string password; public string displayName; }
